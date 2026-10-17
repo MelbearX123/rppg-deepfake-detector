@@ -1,0 +1,84 @@
+# Note: git only allows comments on their own line, never after a pattern.
+
+# ---------------------------------------------------------------------------
+# Build output (CMake + Conan). Always regenerated from source.
+# ---------------------------------------------------------------------------
+build/
+out/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+# ctest scratch output
+Testing/
+# Written by `conan install`; holds paths specific to this machine
+CMakeUserPresets.json
+# Symlink for clangd; the real file lives in build/
+compile_commands.json
+
+# ---------------------------------------------------------------------------
+# Datasets and videos. Large, and the UBFC / FaceForensics++ / Celeb-DF / MMPD
+# licenses forbid redistributing them.
+# ---------------------------------------------------------------------------
+data/
+datasets/
+*.avi
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.m4v
+# Tiny hand-made test clips, if you add any, go here and ARE committed
+!tests/fixtures/**
+
+# ---------------------------------------------------------------------------
+# Pipeline outputs: regenerate with the batch tool, don't commit.
+# Plots and tables for the README go in docs/, which is NOT ignored.
+# ---------------------------------------------------------------------------
+results/
+# Frames saved with cv::imwrite for checking face regions by eye
+debug/
+# Cached face boxes / raw color traces (Stage 9)
+cache/
+*.log
+
+# ---------------------------------------------------------------------------
+# Profiling and crash output
+# ---------------------------------------------------------------------------
+perf.data
+perf.data.old
+gmon.out
+callgrind.out.*
+*.tracy
+vgcore.*
+# Core dumps at the repo root only, so a src/core/ folder is never ignored
+/core
+/core.[0-9]*
+
+# ---------------------------------------------------------------------------
+# Python (scripts/ for plotting, metrics, golden test files)
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# ---------------------------------------------------------------------------
+# Editors and OS
+# ---------------------------------------------------------------------------
+.vscode/
+.idea/
+# clangd index
+.cache/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+# Junk files Windows adds when you copy files into WSL
+*:Zone.Identifier
+
+# ---------------------------------------------------------------------------
+# Personal planning notes, kept local
+# ---------------------------------------------------------------------------
+PLAN.md
+NOTES.md

@@ -1,0 +1,57 @@
+[requires]
+opencv/4.12.0
+eigen/3.4.0
+
+[test_requires]
+gtest/1.17.0
+
+[generators]
+CMakeDeps
+CMakeToolchain
+
+[layout]
+cmake_layout
+
+[options]
+# Offline tool: no GUI, no OCR, no extra image formats.
+# Keep: core, imgproc, imgcodecs, videoio (ffmpeg), dnn + objdetect (YuNet),
+#       video (optical flow), ml (RTrees), calib3d/features2d/flann (objdetect deps).
+opencv/*:highgui=False
+opencv/*:gapi=False
+opencv/*:photo=False
+opencv/*:stitching=False
+opencv/*:with_wayland=False
+opencv/*:with_tesseract=False
+opencv/*:with_openexr=False
+opencv/*:with_tiff=False
+opencv/*:with_webp=False
+opencv/*:with_jpeg2000=False
+opencv/*:with_quirc=False
+opencv/*:with_ffmpeg=True
+
+# FFmpeg: decoding only. Its built-in decoders cover H.264/MPEG-4/MJPEG/raw AVI,
+# which is everything UBFC and FaceForensics++ use. External codec libraries are
+# for encoding or niche formats, and the X11/audio/GPU ones need sudo-installed system packages.
+ffmpeg/*:with_programs=False
+ffmpeg/*:with_ssl=False
+ffmpeg/*:with_freetype=False
+ffmpeg/*:with_libiconv=False
+ffmpeg/*:with_openjpeg=False
+ffmpeg/*:with_openh264=False
+ffmpeg/*:with_opus=False
+ffmpeg/*:with_vorbis=False
+ffmpeg/*:with_libx264=False
+ffmpeg/*:with_libx265=False
+ffmpeg/*:with_libvpx=False
+ffmpeg/*:with_libmp3lame=False
+ffmpeg/*:with_libfdk_aac=False
+ffmpeg/*:with_libwebp=False
+ffmpeg/*:with_libalsa=False
+ffmpeg/*:with_pulse=False
+ffmpeg/*:with_vaapi=False
+ffmpeg/*:with_vdpau=False
+ffmpeg/*:with_xcb=False
+ffmpeg/*:with_xlib=False
+ffmpeg/*:with_libsvtav1=False
+ffmpeg/*:with_libaom=False
+ffmpeg/*:with_libdav1d=False
