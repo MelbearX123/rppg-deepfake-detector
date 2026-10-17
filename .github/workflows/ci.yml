@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    # The first run compiles OpenCV and FFmpeg from source (~30-60 min).
+    # Later runs reuse the cached packages and take a couple of minutes.
+    timeout-minutes: 120
+    env:
+      # CMake 4 rejects old cmake_minimum_required() in some dependency recipes
+      CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Conan
+        run: pip install conan
+
+      - name: Detect compiler profile
+        run: conan profile detect --force
+
+      - name: Restore Conan package cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.conan2/p
+          key: conan-${{ runner.os }}-${{ hashFiles('conanfile.txt') }}
+          restore-keys: conan-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: conan install . --build=missing
+
+      - name: Shrink cache (drop sources and build folders, keep packages)
+        run: conan cache clean "*" --source --build --temp
+
+      - name: Configure
+        run: cmake --preset conan-release
+
+      - name: Build
+        run: cmake --build --preset conan-release
+
+      - name: Run tests
+        run: ctest --test-dir build/Release --output-on-failure
