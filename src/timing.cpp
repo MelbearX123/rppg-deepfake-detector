@@ -12,7 +12,6 @@ TimingStats analyze_timing(const std::vector<double>& timestamps_sec) {
         return stats;
     }
 
-
     std::vector<double> intervals;
     intervals.reserve(timestamps_sec.size() - 1);
     for (std::size_t i = 1; i < timestamps_sec.size(); ++i) {
