@@ -4,10 +4,13 @@
 
 namespace rppg {
 
-// Arithmetic mean. Returns 0 for an empty input.
 double mean(const std::vector<double>& x);
 
-// Subtract the mean so the signal is centered on zero.
-std::vector<double> remove_mean(const std::vector<double>& x);
+double median(std::vector<double> x);
+
+double stddev(const std::vector<double>& x);
+
+std::vector<double> resample_uniform(const std::vector<double>& times_sec,
+                                     const std::vector<double>& values, double rate_hz);
 
 }  // namespace rppg

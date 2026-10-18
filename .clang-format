@@ -1,0 +1,12 @@
+# Google C++ style, adjusted to this project: 4-space indents, 100-column lines.
+# Format everything:  clang-format -i apps/*.cpp include/rppg/*.hpp src/*.cpp tests/*.cpp
+BasedOnStyle: Google
+IndentWidth: 4
+ColumnLimit: 100
+AccessModifierOffset: -4
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+IncludeBlocks: Preserve
+DerivePointerAlignment: false
+PointerAlignment: Left
