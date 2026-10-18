@@ -15,6 +15,7 @@ find_package(Eigen3 REQUIRED)
 # --- Core library: signal math, no OpenCV. Fast to build, easy to test. ---
 add_library(rppg_core
     src/compression.cpp
+    src/requirements.cpp
     src/signal.cpp
     src/timing.cpp
 )
@@ -37,6 +38,7 @@ enable_testing()
 find_package(GTest REQUIRED)
 add_executable(rppg_tests
     tests/test_compression.cpp
+    tests/test_requirements.cpp
     tests/test_signal.cpp
     tests/test_timing.cpp
 )

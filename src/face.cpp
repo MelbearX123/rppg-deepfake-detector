@@ -5,7 +5,6 @@
 namespace rppg {
 
 FaceDetector::FaceDetector(const std::string& model_path)
-    //placeholder input size
     : detector_(cv::FaceDetectorYN::create(model_path, "", cv::Size(320, 320))) {}
 
 std::optional<cv::Rect> FaceDetector::largest_face(const cv::Mat& image) {
@@ -17,10 +16,12 @@ std::optional<cv::Rect> FaceDetector::largest_face(const cv::Mat& image) {
         return std::nullopt;
     }
 
+    const cv::Rect image_bounds(0, 0, image.cols, image.rows);
     std::optional<cv::Rect> largest;
     for (int row = 0; row < faces.rows; ++row) {
         const float* f = faces.ptr<float>(row);
-        const cv::Rect box(cvRound(f[0]), cvRound(f[1]), cvRound(f[2]), cvRound(f[3]));
+        const cv::Rect box =
+            cv::Rect(cvRound(f[0]), cvRound(f[1]), cvRound(f[2]), cvRound(f[3])) & image_bounds;
         if (!largest || box.area() > largest->area()) {
             largest = box;
         }

@@ -12,6 +12,7 @@
 #include "rppg/compression.hpp"
 #include "rppg/face.hpp"
 #include "rppg/limits.hpp"
+#include "rppg/requirements.hpp"
 #include "rppg/signal.hpp"
 #include "rppg/timing.hpp"
 #include "rppg/video.hpp"
@@ -24,13 +25,14 @@
 #include <string>
 #include <vector>
 
-
 namespace {
 
 constexpr int kExitOk = 0;
 constexpr int kExitBadInput = 1;
 constexpr int kExitTooShort = 2;
 constexpr int kExitNoUsableFace = 3;
+
+constexpr int kLabelWidth = 14;
 
 struct Options {
     std::string video_path;
@@ -92,65 +94,69 @@ ScanResult scan_video(rppg::VideoReader& reader, rppg::FaceDetector& detector) {
     return result;
 }
 
-void print_report(const rppg::VideoInfo& info, const rppg::TimingStats& timing,
-                  double bpp, const ScanResult& scan) {
-    std::cout << std::fixed << std::setprecision(2)
-              << "Video:        " << info.path << "\n"
-              << "Codec:        " << info.codec << ", "
-              << info.width << "x" << info.height << "\n"
-              << "Frames:       " << timing.frame_count << " read, "
-              << timing.duration_sec << " s\n"
-              << "Frame rate:   " << info.nominal_fps << " fps nominal, "
-              << timing.measured_fps << " fps measured ("
-              << (timing.is_variable_frame_rate ? "variable" : "constant") << ")\n"
-              << "Compression:  " << std::setprecision(3) << bpp << " bits/pixel"
-              << std::setprecision(2) << "\n";
+// Starts a report line with its label padded to a fixed width, so the values
+// line up in a column: field("Codec:") << "h264";
+std::ostream& field(const std::string& label) {
+    return std::cout << std::left << std::setw(kLabelWidth) << label;
+}
 
-    std::cout << "Face:         ";
+void print_report(const rppg::VideoInfo& info, const rppg::TimingStats& timing, double bpp,
+                  const ScanResult& scan) {
+    std::cout << std::fixed << std::setprecision(2);
+    field("Video:") << info.path << "\n";
+    field("Codec:") << info.codec << ", " << info.width << "x" << info.height << "\n";
+    field("Frames:") << timing.frame_count << " read, " << timing.duration_sec << " s\n";
+    field("Frame rate:") << info.nominal_fps << " fps nominal, " << timing.measured_fps
+                         << " fps measured ("
+                         << (timing.is_variable_frame_rate ? "variable" : "constant") << ")\n";
+    field("Compression:") << std::setprecision(3) << bpp << " bits/pixel\n" << std::setprecision(2);
+
     if (scan.face_sizes_px.empty()) {
-        std::cout << "none found in " << scan.sampled_frames << " sampled frames\n";
+        field("Face:") << "none found in " << scan.sampled_frames << " sampled frames\n";
     } else {
-        std::cout << "largest face " << rppg::median(scan.face_sizes_px)
-                  << " px (median), found in " << scan.face_sizes_px.size()
-                  << " of " << scan.sampled_frames << " sampled frames\n";
+        field("Face:") << "largest face " << std::setprecision(0)
+                       << rppg::median(scan.face_sizes_px) << " px (median), found in "
+                       << scan.face_sizes_px.size() << " of " << scan.sampled_frames
+                       << " sampled frames\n"
+                       << std::setprecision(2);
     }
 }
 
 void print_warnings(const rppg::TimingStats& timing, double bpp) {
     if (rppg::is_heavily_compressed(bpp)) {
-        std::cout << "WARNING:      heavy compression (below "
-                  << rppg::limits::kHeavyCompressionBpp
-                  << " bits/pixel); the pulse signal may be degraded\n";
+        field("WARNING:") << "heavy compression (below " << rppg::limits::kHeavyCompressionBpp
+                          << " bits/pixel); the pulse signal may be degraded\n";
     }
     if (timing.is_variable_frame_rate) {
-        std::cout << "NOTE:         variable frame rate (interval variation "
-                  << timing.interval_variation * 100.0
-                  << "%); signals will be resampled to even spacing\n";
+        field("NOTE:") << "variable frame rate (interval variation "
+                       << timing.interval_variation * 100.0
+                       << "%); signals will be resampled to even spacing\n";
     }
     if (timing.non_increasing_count > 0) {
-        std::cout << "WARNING:      " << timing.non_increasing_count
-                  << " timestamps went backward or repeated; the file may be damaged\n";
+        field("WARNING:") << timing.non_increasing_count
+                          << " timestamps went backward or repeated; the file may be damaged\n";
     }
 }
 
-int check_requirements(const rppg::TimingStats& timing, const ScanResult& scan) {
-    if (timing.duration_sec < rppg::limits::kMinDurationSec) {
-        std::cout << "Result:       REJECTED: video is " << timing.duration_sec
-                  << " s, minimum is " << rppg::limits::kMinDurationSec << " s\n";
-        return kExitTooShort;
+void print_result(const rppg::RequirementResult& result) {
+    if (result.status == rppg::RequirementStatus::kOk) {
+        field("Result:") << "OK\n";
+    } else {
+        field("Result:") << "REJECTED: " << result.reason << "\n";
     }
-    if (scan.face_sizes_px.empty()) {
-        std::cout << "Result:       REJECTED: no face found\n";
-        return kExitNoUsableFace;
+}
+
+int exit_code_for(rppg::RequirementStatus status) {
+    switch (status) {
+        case rppg::RequirementStatus::kOk:
+            return kExitOk;
+        case rppg::RequirementStatus::kTooShort:
+            return kExitTooShort;
+        case rppg::RequirementStatus::kNoFace:
+        case rppg::RequirementStatus::kFaceTooSmall:
+            return kExitNoUsableFace;
     }
-    const double face_size = rppg::median(scan.face_sizes_px);
-    if (face_size < rppg::limits::kMinFaceSizePx) {
-        std::cout << "Result:       REJECTED: face is " << face_size
-                  << " px, minimum is " << rppg::limits::kMinFaceSizePx << " px\n";
-        return kExitNoUsableFace;
-    }
-    std::cout << "Result:       OK\n";
-    return kExitOk;
+    return kExitBadInput;  // unreachable; every status is handled above
 }
 
 }  // namespace
@@ -173,13 +179,14 @@ int main(int argc, char** argv) {
         const ScanResult scan = scan_video(reader, detector);
         const rppg::TimingStats timing = rppg::analyze_timing(scan.timestamps_sec);
         const rppg::VideoInfo& info = reader.info();
-        const double bpp = rppg::bits_per_pixel(info.file_bytes, timing.duration_sec,
-                                                info.width, info.height,
-                                                timing.measured_fps);
+        const double bpp =
+            rppg::bits_per_pixel(info.file_bytes, info.width, info.height, timing.frame_count);
+        const rppg::RequirementResult result = rppg::check_requirements(timing, scan.face_sizes_px);
 
         print_report(info, timing, bpp, scan);
         print_warnings(timing, bpp);
-        return check_requirements(timing, scan);
+        print_result(result);
+        return exit_code_for(result.status);
     } catch (const std::exception& e) {
         std::cerr << "error: " << e.what() << "\n";
         return kExitBadInput;

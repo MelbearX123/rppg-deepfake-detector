@@ -25,7 +25,8 @@ jobs:
           python-version: "3.12"
 
       - name: Install Conan
-        run: pip install conan
+        # Pinned so a new Conan release can't change the build without a commit.
+        run: pip install conan==2.33.0
 
       - name: Detect compiler profile
         run: conan profile detect --force
@@ -44,7 +45,8 @@ jobs:
         run: conan cache clean "*" --source --build --temp
 
       - name: Configure
-        run: cmake --preset conan-release
+        # Warnings fail the build here, but not locally while experimenting.
+        run: cmake --preset conan-release -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
 
       - name: Build
         run: cmake --build --preset conan-release

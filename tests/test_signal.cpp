@@ -5,10 +5,12 @@
 #include <stdexcept>
 #include <vector>
 
-// --- mean / median / remove_mean ---
+// --- mean / median / stddev ---
 
-TEST(Signal, MeanOfEmptyIsZero) {
-    EXPECT_DOUBLE_EQ(rppg::mean({}), 0.0);
+TEST(Signal, EmptyInputThrows) {
+    EXPECT_THROW(rppg::mean({}), std::invalid_argument);
+    EXPECT_THROW(rppg::median({}), std::invalid_argument);
+    EXPECT_THROW(rppg::stddev({}), std::invalid_argument);
 }
 
 TEST(Signal, Mean) {
@@ -23,16 +25,13 @@ TEST(Signal, MedianEvenSizeAveragesMiddleTwo) {
     EXPECT_DOUBLE_EQ(rppg::median({4.0, 1.0, 3.0, 2.0}), 2.5);
 }
 
-TEST(Signal, MedianOfEmptyIsZero) {
-    EXPECT_DOUBLE_EQ(rppg::median({}), 0.0);
+TEST(Signal, StddevOfConstantIsZero) {
+    EXPECT_DOUBLE_EQ(rppg::stddev({3.0, 3.0, 3.0}), 0.0);
 }
 
-TEST(Signal, RemoveMeanCentersOnZero) {
-    const auto y = rppg::remove_mean({10.0, 12.0, 14.0});
-    ASSERT_EQ(y.size(), 3u);
-    EXPECT_DOUBLE_EQ(y[0], -2.0);
-    EXPECT_DOUBLE_EQ(y[1], 0.0);
-    EXPECT_DOUBLE_EQ(y[2], 2.0);
+TEST(Signal, StddevDividesByN) {
+    // Mean 5, squared deviations sum to 32, 32 / 8 = 4, sqrt(4) = 2.
+    EXPECT_DOUBLE_EQ(rppg::stddev({2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0}), 2.0);
 }
 
 // --- resample_uniform ---

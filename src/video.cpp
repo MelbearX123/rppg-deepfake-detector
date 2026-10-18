@@ -35,7 +35,6 @@ VideoReader::VideoReader(const std::string& path) {
     info_.width = static_cast<int>(capture_.get(cv::CAP_PROP_FRAME_WIDTH));
     info_.height = static_cast<int>(capture_.get(cv::CAP_PROP_FRAME_HEIGHT));
     info_.nominal_fps = capture_.get(cv::CAP_PROP_FPS);
-    info_.nominal_frame_count = static_cast<int>(capture_.get(cv::CAP_PROP_FRAME_COUNT));
     info_.file_bytes = std::filesystem::file_size(path);
 }
 
@@ -44,7 +43,6 @@ bool VideoReader::read(Frame& frame) {
         return false;
     }
     frame.time_sec = capture_.get(cv::CAP_PROP_POS_MSEC) / 1000.0;
-    frame.index = next_index_++;
     return true;
 }
 
