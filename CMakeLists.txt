@@ -16,6 +16,8 @@ find_package(Eigen3 REQUIRED)
 add_library(rppg_core
     src/face/face_geometry.cpp
     src/face/face_track.cpp
+    src/heart_rate/heart_rate.cpp
+    src/heart_rate/spectrum.cpp
     src/output/signals_csv.cpp
     src/output/track_csv.cpp
     src/pulse/filter.cpp
@@ -52,6 +54,7 @@ add_executable(rppg_tests
     tests/test_compression.cpp
     tests/test_face_track.cpp
     tests/test_filter.cpp
+    tests/test_heart_rate.cpp
     tests/test_pixel_stats.cpp
     tests/test_pulse.cpp
     tests/test_region_signal.cpp
@@ -59,6 +62,7 @@ add_executable(rppg_tests
     tests/test_requirements.cpp
     tests/test_signal.cpp
     tests/test_skin_model.cpp
+    tests/test_spectrum.cpp
     tests/test_timing.cpp
 )
 target_link_libraries(rppg_tests PRIVATE rppg_core GTest::gtest_main)

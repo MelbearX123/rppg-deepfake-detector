@@ -20,8 +20,8 @@ Offline only: video file in, report out. No live webcam, no GUI (OpenCV's highgu
 | 3 Face regions | done | glabella, forehead, upper nasal dorsum, both malars (Li et al. 2024); per-person skin model; trimmed mean |
 | 4 Pulse signal | done | POS (Wang et al. 2017) per region, on colors resampled to an even 30 Hz grid |
 | 5 Signal processing | done | zero-phase Butterworth bandpass 0.7-4 Hz (no detrend: POS already removes drift); the first and last ~2 s are less accurate (edge effects) |
-| 6 Heart rate | next | FFT peak, SNR, "inconclusive" when the signal is weak |
-| 7 Deepfake classification | stretch | compare pulse between regions, FaceForensics++ |
+| 6 Heart rate | done | spectrum peak per 10 s window (every 0.5 bpm), median filter, SNR (de Haan 2013); median of regions above the SNR threshold, else "inconclusive". The threshold is a placeholder until UBFC |
+| 7 Deepfake classification | next (stretch) | compare pulse between regions, FaceForensics++ |
 | 8 Evaluation | planned | MAE/RMSE vs UBFC-rPPG ground truth; per-skin-tone error |
 | 9-10 Performance, packaging | planned | benchmarks, Docker |
 
@@ -34,6 +34,7 @@ The resume-ready milestone is Stage 6 plus heart-rate validation on UBFC (Stage 
   - `face/`: `face`, `face_geometry`, `face_track`
   - `regions/`: `regions`, `region_sampler`, `region_signal`, `skin_model`, `pixel_stats`
   - `pulse/`: `signal`, `filter`, `pulse`
+  - `heart_rate/`: `spectrum`, `heart_rate`
   - `output/`: `track_csv`, `signals_csv`, `annotate`
   - top level: `limits.hpp`, `requirements` (used by every step)
 
@@ -44,15 +45,15 @@ The resume-ready milestone is Stage 6 plus heart-rate validation on UBFC (Stage 
   - `rppg_vision`: anything touching images/video (`video`, `face`, `region_sampler`, `annotate`).
     Keep it thin: extract data with OpenCV, make decisions in core.
 - `apps/rppg_detect.cpp`: the CLI. Runs up to three passes over the video: detect/track, fit
-  skin model, measure regions; then extracts and bandpasses a pulse per region. Returns early (no further passes) once a check rejects the video.
+  skin model, measure regions; then extracts and bandpasses a pulse per region and estimates the heart rate. Returns early (no further passes) once a check rejects the video.
 - `include/rppg/limits.hpp`: every tunable threshold, named. Don't scatter numbers elsewhere.
 - `tests/`: GoogleTest, one file per module.
 - `scripts/`: `make_test_clips.sh` (synthetic test videos), `plot_landmarks.py`, `plot_signals.py`,
-  `plot_pulse.py`.
+  `plot_pulse.py`, `plot_heart_rate.py`.
 - `models/`: YuNet ONNX model. `data/`, `debug/`, `results/`: local only, gitignored.
 
 Exit codes: 0 OK, 1 bad input, 2 too short, 3 no face / face too small, 4 face not tracked
-10 s in a row, 5 no usable skin region.
+10 s in a row, 5 no usable skin region, 6 inconclusive (no region's SNR reached the threshold).
 
 ## Conventions
 
