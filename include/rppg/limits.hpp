@@ -31,4 +31,8 @@ inline constexpr double kPulseRateHz = 30.0;
 
 inline constexpr double kPosWindowSec = 1.6;
 
+inline constexpr double kMinPulseHz = 0.7;
+inline constexpr double kMaxPulseHz = 4.0;
+inline constexpr double kFilterPadSec = 4.8;
+
 }  // namespace rppg::limits

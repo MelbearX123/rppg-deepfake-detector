@@ -28,4 +28,6 @@ std::vector<double> pos_pulse(const std::vector<Color>& colors, std::size_t wind
 RegionPulses extract_pulses(const RegionSignals& signals, const std::vector<double>& timestamps_sec,
                             const Segment& segment);
 
+RegionPulses bandpass_pulses(const RegionPulses& pulses);
+
 }  // namespace rppg
