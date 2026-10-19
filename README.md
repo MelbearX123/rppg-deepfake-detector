@@ -1,6 +1,6 @@
 # rPPG Deepfake Detector
 
-> **This project is a work in progress.** Right now it reads a video with correct per-frame timing, checks that the video is usable (length, compression, face size), finds and tracks the face with 5 landmarks in every frame, and measures the color of five skin regions (glabella, forehead, upper nasal dorsum, both malars) in every frame, skipping hair with a per-person skin model. Pulse extraction and the rest are planned below.
+> **This project is a work in progress.** Right now it reads a video with correct per-frame timing, checks that the video is usable (length, compression, face size), finds and tracks the face with 5 landmarks in every frame, and measures the color of five skin regions (glabella, forehead, upper nasal dorsum, both malars) in every frame, skipping hair with a per-person skin model, then turns each region's color into a pulse signal with POS. Filtering, heart rate, and the rest are planned below.
 
 ## What I'm building
 
@@ -51,6 +51,13 @@ To check the skin regions, save the per-region colors and plot the green channel
 ```bash
 ./build/Release/rppg_detect path/to/video.mp4 --signals-csv results/signals.csv
 .venv/bin/python scripts/plot_signals.py results/signals.csv
+```
+
+To check the pulse signals, save them and plot each region's signal with its spectrum:
+
+```bash
+./build/Release/rppg_detect path/to/video.mp4 --pulse-csv results/pulse.csv
+.venv/bin/python scripts/plot_pulse.py results/pulse.csv
 ```
 
 ## References
