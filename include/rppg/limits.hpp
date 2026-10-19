@@ -34,5 +34,15 @@ inline constexpr double kPosWindowSec = 1.6;
 inline constexpr double kMinPulseHz = 0.7;
 inline constexpr double kMaxPulseHz = 4.0;
 inline constexpr double kFilterPadSec = 2.0;
+inline constexpr double kHeartRateWindowSec = 10.0;
+inline constexpr double kHeartRateStepSec = 1.0;
+inline constexpr double kSpectrumStepBpm = 0.5;
+inline constexpr std::size_t kHeartRateSmoothingWindows = 5;
+inline constexpr double kSnrHalfWidthHz = 0.1;
+
+// PLACEHOLDER until measured on UBFC (Stage 8). 0 dB = the peak holds as much
+// power as the rest of the band; on 10 s test windows noise alone scored -5 dB
+// and a pulse plus equal-power noise +4 dB.
+inline constexpr double kMinSnrDb = 0.0;
 
 }  // namespace rppg::limits

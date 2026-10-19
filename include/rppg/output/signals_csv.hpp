@@ -1,6 +1,7 @@
 #pragma once
 
 #include "rppg/face/face_track.hpp"
+#include "rppg/heart_rate/heart_rate.hpp"
 #include "rppg/pulse/pulse.hpp"
 #include "rppg/regions/region_signal.hpp"
 
@@ -13,5 +14,7 @@ void write_signals_csv(const std::string& path, const std::vector<double>& times
                        const RegionSignals& signals, const Segment& segment);
 
 void write_pulse_csv(const std::string& path, const RegionPulses& pulses);
+
+void write_heart_rate_csv(const std::string& path, const HeartRates& rates);
 
 }  // namespace rppg
