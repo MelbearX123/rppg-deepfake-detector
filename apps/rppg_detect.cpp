@@ -1,6 +1,7 @@
 // rppg_detect: reads a video, finds and tracks the face, measures the color of
 // five skin regions in every frame, turns each region's color into a pulse
-// signal (POS), and prints a report. Stages 1-4 of the pipeline.
+// signal (POS), filters it to the heart-rate band, and prints a report.
+// Stages 1-5 of the pipeline.
 //
 // Usage: rppg_detect <video> [--model <yunet.onnx>] [--debug-dir <dir>]
 //                            [--landmarks-csv <file>] [--signals-csv <file>]
@@ -59,6 +60,7 @@ constexpr int kExitNoUsableRegion = 5;
 
 constexpr int kLabelWidth = 14;
 constexpr int kRegionNameWidth = 14;
+constexpr double kSecPerMin = 60.0;
 
 const cv::Scalar kRawColor(0, 0, 255);       // red
 const cv::Scalar kSmoothedColor(0, 255, 0);  // green
@@ -362,7 +364,9 @@ void print_region_report(const rppg::SkinModel& model, const RegionCoverage& cov
 
 void print_pulse_report(const RegionCoverage& coverage, const rppg::RegionPulses& pulses) {
     field("Pulse:") << count_pulses(pulses) << " of " << rppg::kRegionCount << " regions (POS, "
-                    << std::setprecision(0) << pulses.rate_hz << " Hz)\n"
+                    << std::setprecision(0) << pulses.rate_hz << " Hz, bandpass "
+                    << rppg::limits::kMinPulseHz * kSecPerMin << "-"
+                    << rppg::limits::kMaxPulseHz * kSecPerMin << " bpm)\n"
                     << std::setprecision(2);
     for (std::size_t r = 0; r < rppg::kRegionCount; ++r) {
         if (rppg::is_usable(coverage[r]) && !pulses.pulses[r]) {
@@ -465,8 +469,8 @@ int main(int argc, char** argv) {
                             << options->debug_dir << "\n";
         }
 
-        const rppg::RegionPulses pulses =
-            rppg::extract_pulses(measurement.signals, pass.timestamps_sec, *clean.segment);
+        const rppg::RegionPulses pulses = rppg::bandpass_pulses(
+            rppg::extract_pulses(measurement.signals, pass.timestamps_sec, *clean.segment));
         print_pulse_report(coverage, pulses);
         if (!options->pulse_csv.empty()) {
             rppg::write_pulse_csv(options->pulse_csv, pulses);
