@@ -2,6 +2,7 @@
 
 #include "rppg/timing.hpp"
 
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -13,6 +14,7 @@ enum class RequirementStatus {
     kNoFace,
     kTrackTooShort,
     kFaceTooSmall,
+    kNoUsableRegion,
 };
 
 struct RequirementResult {
@@ -21,6 +23,7 @@ struct RequirementResult {
 };
 
 RequirementResult check_requirements(const TimingStats& timing, double tracked_duration_sec,
-                                     const std::vector<double>& face_sizes_px);
+                                     const std::vector<double>& face_sizes_px,
+                                     std::size_t usable_regions);
 
 }  // namespace rppg
