@@ -1,4 +1,4 @@
-#include "rppg/timing.hpp"
+#include "rppg/video/timing.hpp"
 
 #include <gtest/gtest.h>
 

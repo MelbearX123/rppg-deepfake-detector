@@ -1,4 +1,4 @@
-#include "rppg/signal.hpp"
+#include "rppg/pulse/signal.hpp"
 
 #include <algorithm>
 #include <cmath>

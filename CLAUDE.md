@@ -29,7 +29,16 @@ The resume-ready milestone is Stage 6 plus heart-rate validation on UBFC (Stage 
 
 ## Layout
 
-- `include/rppg/`, `src/`: two libraries.
+- `include/rppg/`, `src/`: grouped by pipeline step, same folders in both:
+  - `video/`: `video`, `timing`, `compression`
+  - `face/`: `face`, `face_geometry`, `face_track`
+  - `regions/`: `regions`, `region_sampler`, `region_signal`, `skin_model`, `pixel_stats`
+  - `pulse/`: `signal`, `filter`, `pulse`
+  - `output/`: `track_csv`, `signals_csv`, `annotate`
+  - top level: `limits.hpp`, `requirements` (used by every step)
+
+  Includes use the folder: `#include "rppg/face/face_track.hpp"`. The folders don't decide the
+  library; `CMakeLists.txt` splits the files into two:
   - `rppg_core`: no OpenCV. Signal math, timing, face tracking, regions, skin model, CSV writers,
     requirement checks. Everything here is unit-testable without video.
   - `rppg_vision`: anything touching images/video (`video`, `face`, `region_sampler`, `annotate`).
@@ -78,7 +87,7 @@ cmake --preset conan-release -DCMAKE_COMPILE_WARNING_AS_ERROR=ON && cmake --buil
 cmake --preset conan-release -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF
 ```
 
-Format check: `clang-format --dry-run --Werror apps/*.cpp include/rppg/*.hpp src/*.cpp tests/*.cpp`
+Format check: `clang-format --dry-run --Werror $(git ls-files '*.cpp' '*.hpp')`
 
 Python scripts use the project venv: `.venv/bin/python scripts/plot_signals.py results/signals.csv`
 

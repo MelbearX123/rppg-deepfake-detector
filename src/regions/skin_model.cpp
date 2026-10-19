@@ -1,7 +1,7 @@
-#include "rppg/skin_model.hpp"
+#include "rppg/regions/skin_model.hpp"
 
 #include "rppg/limits.hpp"
-#include "rppg/signal.hpp"
+#include "rppg/pulse/signal.hpp"
 
 #include <algorithm>
 #include <cmath>

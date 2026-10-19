@@ -1,4 +1,4 @@
-#include "rppg/region_sampler.hpp"
+#include "rppg/regions/region_sampler.hpp"
 
 #include <opencv2/imgproc.hpp>
 

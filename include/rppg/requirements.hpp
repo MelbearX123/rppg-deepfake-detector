@@ -1,6 +1,6 @@
 #pragma once
 
-#include "rppg/timing.hpp"
+#include "rppg/video/timing.hpp"
 
 #include <cstddef>
 #include <string>

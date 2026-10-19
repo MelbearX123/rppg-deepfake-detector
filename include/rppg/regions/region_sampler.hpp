@@ -1,7 +1,7 @@
 #pragma once
 
-#include "rppg/region_signal.hpp"
-#include "rppg/regions.hpp"
+#include "rppg/regions/region_signal.hpp"
+#include "rppg/regions/regions.hpp"
 
 #include <opencv2/core.hpp>
 

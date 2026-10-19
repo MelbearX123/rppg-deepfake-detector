@@ -1,7 +1,7 @@
-#include "rppg/pulse.hpp"
+#include "rppg/pulse/pulse.hpp"
 
 #include "rppg/limits.hpp"
-#include "rppg/signal.hpp"
+#include "rppg/pulse/signal.hpp"
 
 #include <gtest/gtest.h>
 

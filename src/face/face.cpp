@@ -1,4 +1,4 @@
-#include "rppg/face.hpp"
+#include "rppg/face/face.hpp"
 
 #include "rppg/limits.hpp"
 

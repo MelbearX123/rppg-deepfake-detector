@@ -1,7 +1,7 @@
 #include "rppg/requirements.hpp"
 
 #include "rppg/limits.hpp"
-#include "rppg/signal.hpp"
+#include "rppg/pulse/signal.hpp"
 
 #include <iomanip>
 #include <sstream>

@@ -1,4 +1,4 @@
-#include "rppg/video.hpp"
+#include "rppg/video/video.hpp"
 
 #include <cctype>
 #include <filesystem>

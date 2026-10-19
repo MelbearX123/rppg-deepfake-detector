@@ -1,4 +1,4 @@
-#include "rppg/signals_csv.hpp"
+#include "rppg/output/signals_csv.hpp"
 
 #include <algorithm>
 #include <fstream>

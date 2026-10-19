@@ -1,8 +1,8 @@
-#include "rppg/pulse.hpp"
+#include "rppg/pulse/pulse.hpp"
 
-#include "rppg/filter.hpp"
 #include "rppg/limits.hpp"
-#include "rppg/signal.hpp"
+#include "rppg/pulse/filter.hpp"
+#include "rppg/pulse/signal.hpp"
 
 #include <algorithm>
 #include <cmath>
