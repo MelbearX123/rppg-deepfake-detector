@@ -6,7 +6,6 @@
 #include <optional>
 #include <vector>
 
-
 namespace rppg {
 
 using FaceTrack = std::vector<std::optional<FaceGeometry>>;
