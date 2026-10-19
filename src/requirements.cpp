@@ -9,7 +9,8 @@
 namespace rppg {
 
 RequirementResult check_requirements(const TimingStats& timing, double tracked_duration_sec,
-                                     const std::vector<double>& face_sizes_px) {
+                                     const std::vector<double>& face_sizes_px,
+                                     std::size_t usable_regions) {
     std::ostringstream reason;
     reason << std::fixed;
 
@@ -32,6 +33,9 @@ RequirementResult check_requirements(const TimingStats& timing, double tracked_d
         reason << std::setprecision(0) << "face is " << face_size << " px, minimum is "
                << limits::kMinFaceSizePx << " px";
         return {RequirementStatus::kFaceTooSmall, reason.str()};
+    }
+    if (usable_regions == 0) {
+        return {RequirementStatus::kNoUsableRegion, "no skin region is mostly skin"};
     }
     return {RequirementStatus::kOk, ""};
 }
