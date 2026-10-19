@@ -15,15 +15,19 @@ find_package(Eigen3 REQUIRED)
 # --- Core library: signal math, no OpenCV. Fast to build, easy to test. ---
 add_library(rppg_core
     src/compression.cpp
+    src/face_geometry.cpp
+    src/face_track.cpp
     src/requirements.cpp
     src/signal.cpp
     src/timing.cpp
+    src/track_csv.cpp
 )
 target_include_directories(rppg_core PUBLIC include)
 target_link_libraries(rppg_core PUBLIC Eigen3::Eigen)
 
 # --- Vision library: everything that touches images or video files. ---
 add_library(rppg_vision
+    src/annotate.cpp
     src/face.cpp
     src/video.cpp
 )
@@ -38,6 +42,7 @@ enable_testing()
 find_package(GTest REQUIRED)
 add_executable(rppg_tests
     tests/test_compression.cpp
+    tests/test_face_track.cpp
     tests/test_requirements.cpp
     tests/test_signal.cpp
     tests/test_timing.cpp
