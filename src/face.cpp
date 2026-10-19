@@ -1,36 +1,55 @@
 #include "rppg/face.hpp"
 
+#include "rppg/limits.hpp"
+
+#include <opencv2/imgproc.hpp>
+
 #include <algorithm>
 
 namespace rppg {
 
+namespace {
+
+Box clip_to_image(const Box& box, int image_width, int image_height) {
+    const double left = std::clamp(box.x, 0.0, static_cast<double>(image_width));
+    const double top = std::clamp(box.y, 0.0, static_cast<double>(image_height));
+    const double right = std::clamp(box.x + box.width, 0.0, static_cast<double>(image_width));
+    const double bottom = std::clamp(box.y + box.height, 0.0, static_cast<double>(image_height));
+    return Box{left, top, right - left, bottom - top};
+}
+
+}  // namespace
+
 FaceDetector::FaceDetector(const std::string& model_path)
     : detector_(cv::FaceDetectorYN::create(model_path, "", cv::Size(320, 320))) {}
 
-std::optional<cv::Rect> FaceDetector::largest_face(const cv::Mat& image) {
-    detector_->setInputSize(image.size());
-
-    cv::Mat faces;
-    detector_->detect(image, faces);
-    if (faces.empty()) {
-        return std::nullopt;
+std::vector<FaceGeometry> FaceDetector::detect(const cv::Mat& image) {
+    const cv::Mat* input = &image;
+    double scale = 1.0;
+    if (image.cols > limits::kDetectionWidthPx) {
+        scale = static_cast<double>(image.cols) / limits::kDetectionWidthPx;
+        const int height = cvRound(image.rows / scale);
+        cv::resize(image, resized_, cv::Size(limits::kDetectionWidthPx, height), 0, 0,
+                   cv::INTER_AREA);
+        input = &resized_;
     }
 
-    const cv::Rect image_bounds(0, 0, image.cols, image.rows);
-    std::optional<cv::Rect> largest;
-    for (int row = 0; row < faces.rows; ++row) {
-        const float* f = faces.ptr<float>(row);
-        const cv::Rect box =
-            cv::Rect(cvRound(f[0]), cvRound(f[1]), cvRound(f[2]), cvRound(f[3])) & image_bounds;
-        if (!largest || box.area() > largest->area()) {
-            largest = box;
+    detector_->setInputSize(input->size());
+    cv::Mat output;
+    detector_->detect(*input, output);
+    std::vector<FaceGeometry> faces;
+    faces.reserve(static_cast<std::size_t>(output.rows));
+    for (int row = 0; row < output.rows; ++row) {
+        const float* v = output.ptr<float>(row);
+        FaceGeometry face;
+        face.box = clip_to_image(Box{v[0] * scale, v[1] * scale, v[2] * scale, v[3] * scale},
+                                 image.cols, image.rows);
+        for (std::size_t l = 0; l < kLandmarkCount; ++l) {
+            face.landmarks[l] = Point{v[4 + 2 * l] * scale, v[5 + 2 * l] * scale};
         }
+        faces.push_back(face);
     }
-    return largest;
-}
-
-int face_size_px(const cv::Rect& face) {
-    return std::min(face.width, face.height);
+    return faces;
 }
 
 }  // namespace rppg

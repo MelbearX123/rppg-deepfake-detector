@@ -8,7 +8,7 @@
 
 namespace rppg {
 
-RequirementResult check_requirements(const TimingStats& timing,
+RequirementResult check_requirements(const TimingStats& timing, double tracked_duration_sec,
                                      const std::vector<double>& face_sizes_px) {
     std::ostringstream reason;
     reason << std::fixed;
@@ -20,6 +20,12 @@ RequirementResult check_requirements(const TimingStats& timing,
     }
     if (face_sizes_px.empty()) {
         return {RequirementStatus::kNoFace, "no face found"};
+    }
+    if (tracked_duration_sec < limits::kMinDurationSec) {
+        reason << std::setprecision(2) << "face tracked for at most " << tracked_duration_sec
+               << " s in a row, minimum is " << std::setprecision(0) << limits::kMinDurationSec
+               << " s";
+        return {RequirementStatus::kTrackTooShort, reason.str()};
     }
     const double face_size = median(face_sizes_px);
     if (face_size < limits::kMinFaceSizePx) {

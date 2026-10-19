@@ -34,6 +34,56 @@ TEST(Signal, StddevDividesByN) {
     EXPECT_DOUBLE_EQ(rppg::stddev({2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0}), 2.0);
 }
 
+// --- moving_average_centered ---
+
+TEST(MovingAverage, StraightLineIsUnchanged) {
+    // A centered average of a straight line is the line itself: no lag.
+    const std::vector<double> ramp = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0};
+    const auto out = rppg::moving_average_centered(ramp, 3);
+    for (std::size_t i = 0; i < ramp.size(); ++i) {
+        EXPECT_NEAR(out[i], ramp[i], 1e-12);
+    }
+}
+
+TEST(MovingAverage, SpikeIsSpreadOverWindow) {
+    // Ends can only reach 0 neighbors, so they stay as they are.
+    const auto out = rppg::moving_average_centered({0.0, 0.0, 9.0, 0.0, 0.0}, 3);
+    const std::vector<double> expected = {0.0, 3.0, 3.0, 3.0, 0.0};
+    for (std::size_t i = 0; i < expected.size(); ++i) {
+        EXPECT_NEAR(out[i], expected[i], 1e-12);
+    }
+}
+
+TEST(MovingAverage, WindowOfOneIsUnchanged) {
+    const std::vector<double> x = {4.0, 1.0, 7.0};
+    EXPECT_EQ(rppg::moving_average_centered(x, 1), x);
+}
+
+TEST(MovingAverage, EvenWindowThrows) {
+    EXPECT_THROW(rppg::moving_average_centered({1.0, 2.0}, 2), std::invalid_argument);
+}
+
+// --- fill_gaps ---
+
+TEST(FillGaps, FillsShortInteriorGapWithStraightLine) {
+    const auto out = rppg::fill_gaps({0.0, std::nullopt, std::nullopt, 3.0}, 2);
+    ASSERT_TRUE(out[1] && out[2]);
+    EXPECT_DOUBLE_EQ(*out[1], 1.0);
+    EXPECT_DOUBLE_EQ(*out[2], 2.0);
+}
+
+TEST(FillGaps, LeavesGapLongerThanMaxMissing) {
+    const auto out = rppg::fill_gaps({0.0, std::nullopt, std::nullopt, 3.0}, 1);
+    EXPECT_FALSE(out[1]);
+    EXPECT_FALSE(out[2]);
+}
+
+TEST(FillGaps, LeavesGapsAtTheEndsMissing) {
+    const auto out = rppg::fill_gaps({std::nullopt, 1.0, 2.0, std::nullopt}, 5);
+    EXPECT_FALSE(out[0]);
+    EXPECT_FALSE(out[3]);
+}
+
 // --- resample_uniform ---
 
 TEST(Resample, EvenInputAtSameRateIsUnchanged) {
