@@ -88,4 +88,50 @@ std::vector<double> resample_uniform(const std::vector<double>& times_sec,
     return out;
 }
 
+std::vector<double> moving_average_centered(const std::vector<double>& x, std::size_t window) {
+    if (window % 2 == 0) {
+        throw std::invalid_argument("moving_average_centered: window must be odd");
+    }
+    const std::size_t half = window / 2;
+
+    std::vector<double> out;
+    out.reserve(x.size());
+    for (std::size_t i = 0; i < x.size(); ++i) {
+        const std::size_t reach = std::min({half, i, x.size() - 1 - i});
+        const auto first = x.begin() + static_cast<std::ptrdiff_t>(i - reach);
+        const auto last = x.begin() + static_cast<std::ptrdiff_t>(i + reach + 1);
+        out.push_back(std::accumulate(first, last, 0.0) / static_cast<double>(2 * reach + 1));
+    }
+    return out;
+}
+
+std::vector<std::optional<double>> fill_gaps(const std::vector<std::optional<double>>& x,
+                                             std::size_t max_gap) {
+    std::vector<std::optional<double>> out = x;
+    std::size_t i = 0;
+    while (i < out.size()) {
+        if (out[i]) {
+            ++i;
+            continue;
+        }
+        const std::size_t gap_begin = i;
+        while (i < out.size() && !out[i]) {
+            ++i;
+        }
+        const std::size_t gap_end = i;
+        const bool has_both_sides = gap_begin > 0 && gap_end < out.size();
+        if (!has_both_sides || gap_end - gap_begin > max_gap) {
+            continue;
+        }
+        const double before = *out[gap_begin - 1];
+        const double after = *out[gap_end];
+        const auto steps = static_cast<double>(gap_end - gap_begin + 1);
+        for (std::size_t k = gap_begin; k < gap_end; ++k) {
+            const double frac = static_cast<double>(k - gap_begin + 1) / steps;
+            out[k] = before + frac * (after - before);
+        }
+    }
+    return out;
+}
+
 }  // namespace rppg
