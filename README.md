@@ -72,5 +72,17 @@ To check the heart rate, save the per-window estimates and plot them with their 
 **UBFC-rPPG dataset:**
 S. Bobbia, R. Macwan, Y. Benezeth, A. Mansouri, J. Dubois, "Unsupervised skin tissue segmentation for remote photoplethysmography", *Pattern Recognition Letters*, 2017.
 
+**Face detection (YuNet):**
+W. Wu, H. Peng, S. Yu, "YuNet: A Tiny Millisecond-level Face Detector", *Machine Intelligence Research*, vol. 20, no. 5, pp. 656–665, 2023. https://doi.org/10.1007/s11633-023-1423-y
+
 **Face regions:**
 S. Li, M. Elgendi, C. Menon, "Optimal facial regions for remote heart rate measurement during physical and cognitive activities", *npj Cardiovascular Health*, vol. 1, art. 33, 2024. https://doi.org/10.1038/s44325-024-00033-7
+
+**Pulse extraction (POS):**
+W. Wang, A. C. den Brinker, S. Stuijk, G. de Haan, "Algorithmic Principles of Remote PPG", *IEEE Transactions on Biomedical Engineering*, vol. 64, no. 7, 2017.
+
+**Bandpass filter (biquad formulas):**
+R. Bristow-Johnson, "Audio EQ Cookbook", W3C Working Group Note, 2021. https://www.w3.org/TR/audio-eq-cookbook/
+
+**Signal quality (SNR):**
+G. de Haan, V. Jeanne, "Robust Pulse Rate From Chrominance-Based rPPG", *IEEE Transactions on Biomedical Engineering*, vol. 60, no. 10, pp. 2878–2886, 2013.
