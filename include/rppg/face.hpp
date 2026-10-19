@@ -1,10 +1,12 @@
 #pragma once
 
+#include "rppg/face_geometry.hpp"
+
 #include <opencv2/core.hpp>
 #include <opencv2/objdetect.hpp>
 
-#include <optional>
 #include <string>
+#include <vector>
 
 namespace rppg {
 
@@ -12,12 +14,11 @@ class FaceDetector {
 public:
     explicit FaceDetector(const std::string& model_path);
 
-    std::optional<cv::Rect> largest_face(const cv::Mat& image);
+    std::vector<FaceGeometry> detect(const cv::Mat& image);
 
 private:
     cv::Ptr<cv::FaceDetectorYN> detector_;
+    cv::Mat resized_;
 };
-
-int face_size_px(const cv::Rect& face);
 
 }  // namespace rppg
