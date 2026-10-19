@@ -1,5 +1,6 @@
 #include "rppg/pulse.hpp"
 
+#include "rppg/filter.hpp"
 #include "rppg/limits.hpp"
 #include "rppg/signal.hpp"
 
@@ -148,6 +149,18 @@ RegionPulses extract_pulses(const RegionSignals& signals, const std::vector<doub
                                             limits::kPulseRateHz, limits::kMaxGapSec);
         if (colors) {
             result.pulses[r] = pos_pulse(*colors, window);
+        }
+    }
+    return result;
+}
+
+RegionPulses bandpass_pulses(const RegionPulses& pulses) {
+    RegionPulses result = pulses;
+    const auto pad = static_cast<std::size_t>(std::lround(limits::kFilterPadSec * pulses.rate_hz));
+    for (auto& pulse : result.pulses) {
+        if (pulse) {
+            *pulse = bandpass_zero_phase(*pulse, pulses.rate_hz, limits::kMinPulseHz,
+                                         limits::kMaxPulseHz, pad);
         }
     }
     return result;

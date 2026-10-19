@@ -19,8 +19,8 @@ Offline only: video file in, report out. No live webcam, no GUI (OpenCV's highgu
 | 2 Face tracking | done | YuNet on every frame (shrunk to 640 px), IoU follower, gap filling, longest stretch, centered moving average |
 | 3 Face regions | done | glabella, forehead, upper nasal dorsum, both malars (Li et al. 2024); per-person skin model; trimmed mean |
 | 4 Pulse signal | done | POS (Wang et al. 2017) per region, on colors resampled to an even 30 Hz grid |
-| 5 Signal processing | next | detrend, 0.7-4 Hz bandpass |
-| 6 Heart rate | planned | FFT peak, SNR, "inconclusive" when the signal is weak |
+| 5 Signal processing | done | zero-phase Butterworth bandpass 0.7-4 Hz (no detrend: POS already removes drift); the first and last ~2 s are less accurate (edge effects) |
+| 6 Heart rate | next | FFT peak, SNR, "inconclusive" when the signal is weak |
 | 7 Deepfake classification | stretch | compare pulse between regions, FaceForensics++ |
 | 8 Evaluation | planned | MAE/RMSE vs UBFC-rPPG ground truth; per-skin-tone error |
 | 9-10 Performance, packaging | planned | benchmarks, Docker |
@@ -35,7 +35,7 @@ The resume-ready milestone is Stage 6 plus heart-rate validation on UBFC (Stage 
   - `rppg_vision`: anything touching images/video (`video`, `face`, `region_sampler`, `annotate`).
     Keep it thin: extract data with OpenCV, make decisions in core.
 - `apps/rppg_detect.cpp`: the CLI. Runs up to three passes over the video: detect/track, fit
-  skin model, measure regions; then extracts a pulse per region. Returns early (no further passes) once a check rejects the video.
+  skin model, measure regions; then extracts and bandpasses a pulse per region. Returns early (no further passes) once a check rejects the video.
 - `include/rppg/limits.hpp`: every tunable threshold, named. Don't scatter numbers elsewhere.
 - `tests/`: GoogleTest, one file per module.
 - `scripts/`: `make_test_clips.sh` (synthetic test videos), `plot_landmarks.py`, `plot_signals.py`,

@@ -1,6 +1,6 @@
 # rPPG Deepfake Detector
 
-> **This project is a work in progress.** Right now it reads a video with correct per-frame timing, checks that the video is usable (length, compression, face size), finds and tracks the face with 5 landmarks in every frame, and measures the color of five skin regions (glabella, forehead, upper nasal dorsum, both malars) in every frame, skipping hair with a per-person skin model, then turns each region's color into a pulse signal with POS. Filtering, heart rate, and the rest are planned below.
+> **This project is a work in progress.** Right now it reads a video with correct per-frame timing, checks that the video is usable (length, compression, face size), finds and tracks the face with 5 landmarks in every frame, and measures the color of five skin regions (glabella, forehead, upper nasal dorsum, both malars) in every frame, skipping hair with a per-person skin model, then turns each region's color into a pulse signal with POS and filters it to the heart-rate band. Heart rate and the rest are planned below.
 
 ## What I'm building
 
@@ -14,7 +14,7 @@ When your heart beats, a little more blood flows into the skin of your face, and
 2. **Find the face** in each frame with OpenCV's YuNet face detector, and use its landmarks to place five skin regions: glabella, forehead, upper nasal dorsum, and both malars (cheekbones), the regions that performed best in Li et al. (2024) (see [References](#references)).
 3. **Average the color** of each region in every frame, which gives a red, green, and blue signal over time. A skin model learned from each person's own face skips hair and shadow, and a trimmed mean drops glare.
 4. **Turn the colors into a pulse signal** using the POS algorithm (Wang et al., 2017), which combines R, G, and B so that lighting changes and head movement mostly cancel out.
-5. **Clean the signal** by removing slow drift and filtering to 0.7–4 Hz (42–240 BPM, the range of human heart rates).
+5. **Clean the signal** by filtering to 0.7–4 Hz (42–240 BPM, the range of human heart rates). POS already removes most slow drift, so a separate detrending step didn't change anything when I measured it.
 6. **Estimate the heart rate** with an FFT: the strongest frequency in that range is the pulse.
 7. **Check that it actually works** by comparing my heart rates to real pulse-sensor readings from the UBFC-rPPG dataset (see [References](#references)). I want this working before I touch any deepfakes.
 8. **Detect deepfakes** by comparing the pulse between face regions and training a classifier on real and fake videos from FaceForensics++. If the signal is too weak to trust, the tool should say "inconclusive" instead of guessing.
