@@ -23,7 +23,6 @@ std::optional<std::vector<Color>> resample_colors(const RegionSeries& series,
                                                   const Segment& segment, double rate_hz,
                                                   double max_gap_sec);
 
-
 std::vector<double> pos_pulse(const std::vector<Color>& colors, std::size_t window);
 
 RegionPulses extract_pulses(const RegionSignals& signals, const std::vector<double>& timestamps_sec,

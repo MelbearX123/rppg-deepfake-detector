@@ -25,6 +25,6 @@ struct RequirementResult {
 RequirementResult check_face_requirements(const TimingStats& timing, double tracked_duration_sec,
                                           const std::vector<double>& face_sizes_px);
 
-RequirementResult check_region_requirements(std::size_t usable_regions);
+RequirementResult check_region_requirements(std::size_t pulse_regions);
 
 }  // namespace rppg
