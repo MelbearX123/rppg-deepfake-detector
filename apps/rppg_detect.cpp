@@ -1,8 +1,9 @@
-// rppg_detect: reads a video, finds and tracks the face, checks the video is
-// usable for pulse measurement, and prints a report. Stages 1-2 of the pipeline.
+// rppg_detect: reads a video, finds and tracks the face, measures the color of
+// five skin regions in every frame, checks the video is usable for pulse
+// measurement, and prints a report. Stages 1-3 of the pipeline.
 //
 // Usage: rppg_detect <video> [--model <yunet.onnx>] [--debug-dir <dir>]
-//                            [--landmarks-csv <file>]
+//                            [--landmarks-csv <file>] [--signals-csv <file>]
 //
 // Exit codes:
 //   0  OK
@@ -10,14 +11,20 @@
 //   2  video too short
 //   3  no face found, or the face is too small
 //   4  face never tracked long enough without a break
+//   5  no skin region is usable (e.g. all covered by hair)
 
 #include "rppg/annotate.hpp"
 #include "rppg/compression.hpp"
 #include "rppg/face.hpp"
 #include "rppg/face_track.hpp"
 #include "rppg/limits.hpp"
+#include "rppg/region_sampler.hpp"
+#include "rppg/region_signal.hpp"
+#include "rppg/regions.hpp"
 #include "rppg/requirements.hpp"
 #include "rppg/signal.hpp"
+#include "rppg/signals_csv.hpp"
+#include "rppg/skin_model.hpp"
 #include "rppg/timing.hpp"
 #include "rppg/track_csv.hpp"
 #include "rppg/video.hpp"
@@ -29,6 +36,7 @@
 #include <cmath>
 #include <exception>
 #include <filesystem>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <optional>
@@ -44,18 +52,23 @@ constexpr int kExitBadInput = 1;
 constexpr int kExitTooShort = 2;
 constexpr int kExitNoUsableFace = 3;
 constexpr int kExitTrackTooShort = 4;
+constexpr int kExitNoUsableRegion = 5;
 
 constexpr int kLabelWidth = 14;
 
 const cv::Scalar kRawColor(0, 0, 255);       // red
 const cv::Scalar kSmoothedColor(0, 255, 0);  // green
+const cv::Scalar kRegionColor(0, 255, 255);  // yellow
 constexpr double kDebugFrameIntervalSec = 1.0;
+
+constexpr std::size_t kSkinSamplesPerRegion = 500;
 
 struct Options {
     std::string video_path;
     std::string model_path = "models/face_detection_yunet_2023mar.onnx";
     std::string debug_dir;
     std::string landmarks_csv;
+    std::string signals_csv;
 };
 
 struct DetectionPass {
@@ -70,9 +83,15 @@ struct CleanTrack {
     rppg::FaceTrack smoothed;
 };
 
+struct Measurement {
+    rppg::SkinModel skin_model;
+    rppg::RegionSignals signals;
+    std::size_t debug_frames_saved = 0;
+};
+
 void print_usage() {
     std::cerr << "usage: rppg_detect <video> [--model <yunet.onnx>] [--debug-dir <dir>]\n"
-                 "                           [--landmarks-csv <file>]\n";
+                 "                           [--landmarks-csv <file>] [--signals-csv <file>]\n";
 }
 
 bool require_file(const std::string& path, const std::string& description) {
@@ -94,6 +113,8 @@ std::optional<Options> parse_args(int argc, char** argv) {
             options.debug_dir = argv[++i];
         } else if (arg == "--landmarks-csv" && has_value) {
             options.landmarks_csv = argv[++i];
+        } else if (arg == "--signals-csv" && has_value) {
+            options.signals_csv = argv[++i];
         } else if (options.video_path.empty() && arg.rfind("--", 0) != 0) {
             options.video_path = arg;
         } else {
@@ -113,6 +134,17 @@ std::size_t frames_for(double seconds, double fps) {
 std::size_t odd_frames_for(double seconds, double fps) {
     const std::size_t frames = std::max<std::size_t>(1, frames_for(seconds, fps));
     return frames % 2 == 1 ? frames : frames + 1;
+}
+
+void for_each_frame(const std::string& video_path, std::size_t first, std::size_t last,
+                    const std::function<void(std::size_t, rppg::Frame&)>& visit) {
+    rppg::VideoReader reader(video_path);
+    rppg::Frame frame;
+    for (std::size_t i = 0; i < last && reader.read(frame); ++i) {
+        if (i >= first) {
+            visit(i, frame);
+        }
+    }
 }
 
 DetectionPass run_detection_pass(rppg::VideoReader& reader, rppg::FaceDetector& detector) {
@@ -143,6 +175,81 @@ CleanTrack clean_track(const rppg::FaceTrack& raw_track, double fps) {
     return clean;
 }
 
+rppg::SkinModel fit_skin_model_pass(const std::string& video_path, const CleanTrack& clean,
+                                    double fps) {
+    const rppg::Segment& segment = *clean.segment;
+    const std::size_t step =
+        std::max<std::size_t>(1, frames_for(rppg::limits::kSkinModelSampleIntervalSec, fps));
+
+    std::vector<rppg::YCrCb> samples;
+    for_each_frame(video_path, segment.begin, segment.end, [&](std::size_t i, rppg::Frame& frame) {
+        if ((i - segment.begin) % step != 0) {
+            return;
+        }
+        for (const rppg::Quad& quad : rppg::face_regions(*clean.smoothed[i])) {
+            const rppg::RegionPixels pixels = rppg::pixels_in(frame.image, quad);
+            const std::size_t stride =
+                std::max<std::size_t>(1, pixels.ycrcb.size() / kSkinSamplesPerRegion);
+            for (std::size_t p = 0; p < pixels.ycrcb.size(); p += stride) {
+                samples.push_back(pixels.ycrcb[p]);
+            }
+        }
+    });
+    return rppg::fit_skin_model(samples);
+}
+
+void save_debug_frame(const std::string& debug_dir, std::size_t index, const cv::Mat& image) {
+    std::ostringstream name;
+    name << "frame_" << std::setw(6) << std::setfill('0') << index << ".png";
+    const std::string path = (std::filesystem::path(debug_dir) / name.str()).string();
+    if (!cv::imwrite(path, image)) {
+        throw std::runtime_error("could not write " + path);
+    }
+}
+
+Measurement measure_regions_pass(const Options& options, const CleanTrack& clean,
+                                 const std::vector<double>& timestamps_sec, double fps) {
+    const rppg::Segment& segment = *clean.segment;
+    Measurement measurement;
+    measurement.skin_model = fit_skin_model_pass(options.video_path, clean, fps);
+    for (rppg::RegionSeries& series : measurement.signals) {
+        series.resize(timestamps_sec.size());
+    }
+
+    const bool save_debug = !options.debug_dir.empty();
+    if (save_debug) {
+        std::filesystem::create_directories(options.debug_dir);
+    }
+    const std::size_t debug_step =
+        std::max<std::size_t>(1, frames_for(kDebugFrameIntervalSec, fps));
+
+    for_each_frame(options.video_path, segment.begin, segment.end,
+                   [&](std::size_t i, rppg::Frame& frame) {
+                       const auto quads = rppg::face_regions(*clean.smoothed[i]);
+                       for (std::size_t r = 0; r < rppg::kRegionCount; ++r) {
+                           measurement.signals[r][i] = rppg::measure_region(
+                               rppg::pixels_in(frame.image, quads[r]), measurement.skin_model);
+                       }
+
+                       if (save_debug && (i - segment.begin) % debug_step == 0) {
+                           rppg::draw_face(frame.image, *clean.filled[i], kRawColor);
+                           rppg::draw_face(frame.image, *clean.smoothed[i], kSmoothedColor);
+                           for (const rppg::Quad& quad : quads) {
+                               rppg::draw_quad(frame.image, quad, kRegionColor);
+                           }
+                           save_debug_frame(options.debug_dir, i, frame.image);
+                           ++measurement.debug_frames_saved;
+                       }
+                   });
+    return measurement;
+}
+
+std::size_t count_usable_regions(const Measurement& measurement, const rppg::Segment& segment) {
+    return static_cast<std::size_t>(
+        std::count_if(measurement.signals.begin(), measurement.signals.end(),
+                      [&](const auto& series) { return rppg::is_usable(series, segment); }));
+}
+
 double duration_of(const rppg::Segment& segment, const std::vector<double>& timestamps_sec,
                    const rppg::TimingStats& timing) {
     return timestamps_sec[segment.end - 1] - timestamps_sec[segment.begin] +
@@ -162,32 +269,6 @@ std::vector<double> face_sizes_of(const rppg::FaceTrack& track) {
 std::size_t count_present(const rppg::FaceTrack& track) {
     return static_cast<std::size_t>(std::count_if(
         track.begin(), track.end(), [](const auto& face) { return face.has_value(); }));
-}
-
-std::size_t write_debug_frames(const Options& options, const CleanTrack& clean, double fps) {
-    std::filesystem::create_directories(options.debug_dir);
-    const std::size_t step = std::max<std::size_t>(1, frames_for(kDebugFrameIntervalSec, fps));
-    const rppg::Segment& segment = *clean.segment;
-
-    rppg::VideoReader reader(options.video_path);
-    rppg::Frame frame;
-    std::size_t saved = 0;
-    for (std::size_t i = 0; i < segment.end && reader.read(frame); ++i) {
-        if (i < segment.begin || (i - segment.begin) % step != 0) {
-            continue;
-        }
-        rppg::draw_face(frame.image, *clean.filled[i], kRawColor);
-        rppg::draw_face(frame.image, *clean.smoothed[i], kSmoothedColor);
-
-        std::ostringstream name;
-        name << "frame_" << std::setw(6) << std::setfill('0') << i << ".png";
-        const std::string path = (std::filesystem::path(options.debug_dir) / name.str()).string();
-        if (!cv::imwrite(path, frame.image)) {
-            throw std::runtime_error("could not write " + path);
-        }
-        ++saved;
-    }
-    return saved;
 }
 
 std::ostream& field(const std::string& label) {
@@ -226,6 +307,23 @@ void print_face_report(const DetectionPass& pass, const CleanTrack& clean, doubl
     }
 }
 
+void print_region_report(const Measurement& measurement, const rppg::Segment& segment) {
+    const rppg::SkinModel& model = measurement.skin_model;
+    field("Skin model:") << std::setprecision(1) << "Cr " << model.cr_center << " +/- "
+                         << model.cr_tolerance << ", Cb " << model.cb_center << " +/- "
+                         << model.cb_tolerance << ", Y >= " << model.min_brightness << "\n";
+
+    for (std::size_t r = 0; r < rppg::kRegionCount; ++r) {
+        const rppg::RegionSeries& series = measurement.signals[r];
+        field(r == 0 ? "Regions:" : "")
+            << std::left << std::setw(14) << rppg::region_name(static_cast<rppg::Region>(r))
+            << std::right << std::setprecision(0) << std::setw(3)
+            << rppg::median_coverage(series, segment) * 100.0 << "% skin"
+            << (rppg::is_usable(series, segment) ? "" : "  (unusable)") << "\n";
+    }
+    std::cout << std::setprecision(2);
+}
+
 void print_warnings(const rppg::TimingStats& timing, double bpp) {
     if (rppg::is_heavily_compressed(bpp)) {
         field("WARNING:") << "heavy compression (below " << rppg::limits::kHeavyCompressionBpp
@@ -261,6 +359,8 @@ int exit_code_for(rppg::RequirementStatus status) {
             return kExitNoUsableFace;
         case rppg::RequirementStatus::kTrackTooShort:
             return kExitTrackTooShort;
+        case rppg::RequirementStatus::kNoUsableRegion:
+            return kExitNoUsableRegion;
     }
     return kExitBadInput;
 }
@@ -282,21 +382,33 @@ int main(int argc, char** argv) {
         rppg::VideoReader reader(options->video_path);
         rppg::FaceDetector detector(options->model_path);
 
+        // Pass 1: find and track the face.
         const DetectionPass pass = run_detection_pass(reader, detector);
         const rppg::TimingStats timing = rppg::analyze_timing(pass.timestamps_sec);
         const CleanTrack clean = clean_track(pass.raw_track, timing.measured_fps);
         const rppg::VideoInfo& info = reader.info();
         const double bpp =
             rppg::bits_per_pixel(info.file_bytes, info.width, info.height, timing.frame_count);
-
         const double tracked_sec =
             clean.segment ? duration_of(*clean.segment, pass.timestamps_sec, timing) : 0.0;
         const std::vector<double> face_sizes = face_sizes_of(clean.smoothed);
+
+        // Passes 2-3: learn the skin color, then measure the regions.
+        std::optional<Measurement> measurement;
+        if (clean.segment) {
+            measurement =
+                measure_regions_pass(*options, clean, pass.timestamps_sec, timing.measured_fps);
+        }
+        const std::size_t usable_regions =
+            measurement ? count_usable_regions(*measurement, *clean.segment) : 0;
         const rppg::RequirementResult result =
-            rppg::check_requirements(timing, tracked_sec, face_sizes);
+            rppg::check_requirements(timing, tracked_sec, face_sizes, usable_regions);
 
         print_video_report(info, timing, bpp);
         print_face_report(pass, clean, tracked_sec, face_sizes);
+        if (measurement) {
+            print_region_report(*measurement, *clean.segment);
+        }
         print_warnings(timing, bpp);
 
         if (clean.segment && !options->landmarks_csv.empty()) {
@@ -304,9 +416,14 @@ int main(int argc, char** argv) {
                                   clean.filled, clean.smoothed, *clean.segment);
             field("Landmarks:") << "written to " << options->landmarks_csv << "\n";
         }
-        if (clean.segment && !options->debug_dir.empty()) {
-            const std::size_t saved = write_debug_frames(*options, clean, timing.measured_fps);
-            field("Debug:") << saved << " frames saved to " << options->debug_dir << "\n";
+        if (measurement && !options->signals_csv.empty()) {
+            rppg::write_signals_csv(options->signals_csv, pass.timestamps_sec, measurement->signals,
+                                    *clean.segment);
+            field("Signals:") << "written to " << options->signals_csv << "\n";
+        }
+        if (measurement && !options->debug_dir.empty()) {
+            field("Debug:") << measurement->debug_frames_saved << " frames saved to "
+                            << options->debug_dir << "\n";
         }
 
         print_result(result);
