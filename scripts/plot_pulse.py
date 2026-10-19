@@ -69,7 +69,7 @@ def main():
 
     axes[-1][0].set_xlabel("time (s)")
     axes[-1][1].set_xlabel("bpm")
-    fig.suptitle("POS pulse per region (no bandpass yet)")
+    fig.suptitle("POS pulse per region, bandpass 0.7-4 Hz")
     fig.tight_layout()
 
     if args.out:

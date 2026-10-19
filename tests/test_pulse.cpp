@@ -270,3 +270,32 @@ TEST(ExtractPulses, SkipsUnusableRegionsAndKeepsTheRest) {
     ASSERT_TRUE(result.pulses[rppg::kLeftMalar]);
     EXPECT_EQ(result.pulses[rppg::kLeftMalar]->size(), frame_count);
 }
+
+// --- bandpass_pulses ---
+
+TEST(BandpassPulses, RemovesDriftAndKeepsTheGrid) {
+    const double rate = rppg::limits::kPulseRateHz;
+    rppg::RegionPulses pulses;
+    pulses.start_sec = 2.5;
+    pulses.rate_hz = rate;
+    std::vector<double> drifting;
+    for (std::size_t k = 0; k < 300; ++k) {
+        drifting.push_back(pulse_wave(k, rate) + 4.0 + 0.02 * static_cast<double>(k));
+    }
+    pulses.pulses[rppg::kLeftMalar] = drifting;
+
+    const rppg::RegionPulses result = rppg::bandpass_pulses(pulses);
+    EXPECT_DOUBLE_EQ(result.start_sec, 2.5);
+    EXPECT_DOUBLE_EQ(result.rate_hz, rate);
+    EXPECT_FALSE(result.pulses[rppg::kForehead]);
+    ASSERT_TRUE(result.pulses[rppg::kLeftMalar]);
+    ASSERT_EQ(result.pulses[rppg::kLeftMalar]->size(), drifting.size());
+
+    // The offset and slope (4 -> 10) are gone; what's left is the pulse.
+    std::vector<double> wave;
+    for (std::size_t k = 0; k < drifting.size(); ++k) {
+        wave.push_back(pulse_wave(k, rate));
+    }
+    EXPECT_NEAR(rppg::mean(*result.pulses[rppg::kLeftMalar]), 0.0, 0.05);
+    EXPECT_GT(correlation(*result.pulses[rppg::kLeftMalar], wave), 0.99);
+}
