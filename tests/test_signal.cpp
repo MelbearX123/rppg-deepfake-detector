@@ -63,6 +63,24 @@ TEST(MovingAverage, EvenWindowThrows) {
     EXPECT_THROW(rppg::moving_average_centered({1.0, 2.0}, 2), std::invalid_argument);
 }
 
+// --- median_filter_centered ---
+
+TEST(MedianFilter, StraightLineIsUnchanged) {
+    const std::vector<double> ramp = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0};
+    EXPECT_EQ(rppg::median_filter_centered(ramp, 5), ramp);
+}
+
+TEST(MedianFilter, SingleSpikeIsRemoved) {
+    // Unlike the moving average, the spike doesn't leak into its neighbors.
+    const auto out = rppg::median_filter_centered({72.0, 74.0, 141.0, 73.0, 75.0}, 3);
+    const std::vector<double> expected = {72.0, 74.0, 74.0, 75.0, 75.0};
+    EXPECT_EQ(out, expected);
+}
+
+TEST(MedianFilter, EvenWindowThrows) {
+    EXPECT_THROW(rppg::median_filter_centered({1.0, 2.0}, 2), std::invalid_argument);
+}
+
 // --- fill_gaps ---
 
 TEST(FillGaps, FillsShortInteriorGapWithStraightLine) {
