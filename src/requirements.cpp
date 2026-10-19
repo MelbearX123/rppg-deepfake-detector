@@ -36,9 +36,9 @@ RequirementResult check_face_requirements(const TimingStats& timing, double trac
     return {RequirementStatus::kOk, ""};
 }
 
-RequirementResult check_region_requirements(std::size_t usable_regions) {
-    if (usable_regions == 0) {
-        return {RequirementStatus::kNoUsableRegion, "no skin region is mostly skin"};
+RequirementResult check_region_requirements(std::size_t pulse_regions) {
+    if (pulse_regions == 0) {
+        return {RequirementStatus::kNoUsableRegion, "no skin region gave a pulse signal"};
     }
     return {RequirementStatus::kOk, ""};
 }
