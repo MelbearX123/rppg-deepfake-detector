@@ -33,6 +33,7 @@
 #include <iostream>
 #include <optional>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -48,6 +49,7 @@ constexpr int kLabelWidth = 14;
 
 const cv::Scalar kRawColor(0, 0, 255);       // red
 const cv::Scalar kSmoothedColor(0, 255, 0);  // green
+constexpr double kDebugFrameIntervalSec = 1.0;
 
 struct Options {
     std::string video_path;
@@ -65,8 +67,7 @@ struct DetectionPass {
 struct CleanTrack {
     rppg::FaceTrack filled;
     std::optional<rppg::Segment> segment;
-    std::vector<rppg::FaceGeometry> raw_faces;
-    std::vector<rppg::FaceGeometry> smoothed;
+    rppg::FaceTrack smoothed;
 };
 
 void print_usage() {
@@ -136,9 +137,8 @@ CleanTrack clean_track(const rppg::FaceTrack& raw_track, double fps) {
     clean.filled = rppg::fill_short_gaps(raw_track, frames_for(rppg::limits::kMaxGapSec, fps));
     clean.segment = rppg::longest_segment(clean.filled);
     if (clean.segment) {
-        clean.raw_faces = rppg::faces_in(clean.filled, *clean.segment);
-        clean.smoothed = rppg::smooth_track(clean.raw_faces,
-                                            odd_frames_for(rppg::limits::kSmoothingWindowSec, fps));
+        clean.smoothed = rppg::smooth_segment(
+            clean.filled, *clean.segment, odd_frames_for(rppg::limits::kSmoothingWindowSec, fps));
     }
     return clean;
 }
@@ -149,11 +149,12 @@ double duration_of(const rppg::Segment& segment, const std::vector<double>& time
            timing.median_interval_sec;
 }
 
-std::vector<double> face_sizes_of(const std::vector<rppg::FaceGeometry>& faces) {
+std::vector<double> face_sizes_of(const rppg::FaceTrack& track) {
     std::vector<double> sizes;
-    sizes.reserve(faces.size());
-    for (const rppg::FaceGeometry& face : faces) {
-        sizes.push_back(rppg::face_size_px(face.box));
+    for (const auto& face : track) {
+        if (face) {
+            sizes.push_back(rppg::face_size_px(face->box));
+        }
     }
     return sizes;
 }
@@ -165,8 +166,7 @@ std::size_t count_present(const rppg::FaceTrack& track) {
 
 std::size_t write_debug_frames(const Options& options, const CleanTrack& clean, double fps) {
     std::filesystem::create_directories(options.debug_dir);
-    const std::size_t step =
-        std::max<std::size_t>(1, frames_for(rppg::limits::kDebugFrameIntervalSec, fps));
+    const std::size_t step = std::max<std::size_t>(1, frames_for(kDebugFrameIntervalSec, fps));
     const rppg::Segment& segment = *clean.segment;
 
     rppg::VideoReader reader(options.video_path);
@@ -176,12 +176,15 @@ std::size_t write_debug_frames(const Options& options, const CleanTrack& clean, 
         if (i < segment.begin || (i - segment.begin) % step != 0) {
             continue;
         }
-        rppg::draw_face(frame.image, clean.raw_faces[i - segment.begin], kRawColor);
-        rppg::draw_face(frame.image, clean.smoothed[i - segment.begin], kSmoothedColor);
+        rppg::draw_face(frame.image, *clean.filled[i], kRawColor);
+        rppg::draw_face(frame.image, *clean.smoothed[i], kSmoothedColor);
 
         std::ostringstream name;
         name << "frame_" << std::setw(6) << std::setfill('0') << i << ".png";
-        cv::imwrite((std::filesystem::path(options.debug_dir) / name.str()).string(), frame.image);
+        const std::string path = (std::filesystem::path(options.debug_dir) / name.str()).string();
+        if (!cv::imwrite(path, frame.image)) {
+            throw std::runtime_error("could not write " + path);
+        }
         ++saved;
     }
     return saved;
@@ -202,8 +205,8 @@ void print_video_report(const rppg::VideoInfo& info, const rppg::TimingStats& ti
     field("Compression:") << std::setprecision(3) << bpp << " bits/pixel\n" << std::setprecision(2);
 }
 
-void print_face_report(const DetectionPass& pass, const CleanTrack& clean,
-                       const rppg::TimingStats& timing) {
+void print_face_report(const DetectionPass& pass, const CleanTrack& clean, double tracked_sec,
+                       const std::vector<double>& face_sizes) {
     const std::size_t detected = count_present(pass.raw_track);
     const std::size_t filled = count_present(clean.filled) - detected;
     field("Face:") << "detected in " << detected << " of " << pass.raw_track.size() << " frames, "
@@ -211,12 +214,11 @@ void print_face_report(const DetectionPass& pass, const CleanTrack& clean,
 
     if (clean.segment) {
         const rppg::Segment& segment = *clean.segment;
-        field("Tracked:") << duration_of(segment, pass.timestamps_sec, timing)
-                          << " s in a row (frames " << segment.begin << "-" << segment.end - 1
-                          << "), median size " << std::setprecision(0)
-                          << rppg::median(face_sizes_of(clean.smoothed)) << " px\n"
+        field("Tracked:") << tracked_sec << " s in a row (frames " << segment.begin << "-"
+                          << segment.end - 1 << "), median size " << std::setprecision(0)
+                          << rppg::median(face_sizes) << " px\n"
                           << std::setprecision(2);
-        field("Jitter:") << rppg::landmark_jitter_px(clean.raw_faces) << " px raw, "
+        field("Jitter:") << rppg::landmark_jitter_px(pass.raw_track) << " px raw, "
                          << rppg::landmark_jitter_px(clean.smoothed) << " px smoothed\n";
     }
     if (!pass.detect_ms.empty()) {
@@ -289,16 +291,17 @@ int main(int argc, char** argv) {
 
         const double tracked_sec =
             clean.segment ? duration_of(*clean.segment, pass.timestamps_sec, timing) : 0.0;
+        const std::vector<double> face_sizes = face_sizes_of(clean.smoothed);
         const rppg::RequirementResult result =
-            rppg::check_requirements(timing, tracked_sec, face_sizes_of(clean.smoothed));
+            rppg::check_requirements(timing, tracked_sec, face_sizes);
 
         print_video_report(info, timing, bpp);
-        print_face_report(pass, clean, timing);
+        print_face_report(pass, clean, tracked_sec, face_sizes);
         print_warnings(timing, bpp);
 
         if (clean.segment && !options->landmarks_csv.empty()) {
             rppg::write_track_csv(options->landmarks_csv, pass.timestamps_sec, pass.raw_track,
-                                  clean.filled, *clean.segment, clean.smoothed);
+                                  clean.filled, clean.smoothed, *clean.segment);
             field("Landmarks:") << "written to " << options->landmarks_csv << "\n";
         }
         if (clean.segment && !options->debug_dir.empty()) {

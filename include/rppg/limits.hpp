@@ -15,6 +15,4 @@ inline constexpr double kMaxGapSec = 0.5;
 
 inline constexpr double kSmoothingWindowSec = 0.3;
 
-inline constexpr double kDebugFrameIntervalSec = 1.0;
-
 }  // namespace rppg::limits

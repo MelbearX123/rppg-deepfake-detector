@@ -1,6 +1,6 @@
 # rPPG Deepfake Detector
 
-> **This project is a work in progress.** Right now the build setup, dependencies, and a basic video-reading program are working. The rest is planned below.
+> **This project is a work in progress.** Right now it reads a video with correct per-frame timing, checks that the video is usable (length, compression, face size), and finds and tracks the face with 5 landmarks in every frame, smoothed to remove jitter. Pulse extraction and the rest are planned below.
 
 ## What I'm building
 
@@ -36,6 +36,14 @@ cmake --preset conan-release
 cmake --build --preset conan-release
 ctest --test-dir build/Release --output-on-failure
 ./build/Release/rppg_detect path/to/video.mp4
+```
+
+To check the face tracking, save annotated frames and the landmark positions, then plot them:
+
+```bash
+./build/Release/rppg_detect path/to/video.mp4 --debug-dir debug --landmarks-csv results/track.csv
+python3 -m venv .venv && .venv/bin/pip install -r scripts/requirements.txt
+.venv/bin/python scripts/plot_landmarks.py results/track.csv
 ```
 
 ## References

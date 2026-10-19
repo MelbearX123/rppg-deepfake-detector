@@ -8,7 +8,7 @@
 namespace rppg {
 
 void write_track_csv(const std::string& path, const std::vector<double>& timestamps_sec,
-                     const FaceTrack& detected, const FaceTrack& filled, const Segment& segment,
-                     const std::vector<FaceGeometry>& smoothed);
+                     const FaceTrack& detected, const FaceTrack& filled, const FaceTrack& smoothed,
+                     const Segment& segment);
 
 }  // namespace rppg

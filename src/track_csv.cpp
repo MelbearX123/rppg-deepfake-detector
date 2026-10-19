@@ -33,8 +33,8 @@ void write_row(std::ofstream& out, std::size_t frame, double time_sec, const cha
 }  // namespace
 
 void write_track_csv(const std::string& path, const std::vector<double>& timestamps_sec,
-                     const FaceTrack& detected, const FaceTrack& filled, const Segment& segment,
-                     const std::vector<FaceGeometry>& smoothed) {
+                     const FaceTrack& detected, const FaceTrack& filled, const FaceTrack& smoothed,
+                     const Segment& segment) {
     std::ofstream out(path);
     if (!out) {
         throw std::runtime_error("could not write " + path);
@@ -45,7 +45,7 @@ void write_track_csv(const std::string& path, const std::vector<double>& timesta
     for (std::size_t i = segment.begin; i < segment.end; ++i) {
         const bool was_detected = detected[i].has_value();
         write_row(out, i, timestamps_sec[i], "raw", was_detected, *filled[i]);
-        write_row(out, i, timestamps_sec[i], "smoothed", was_detected, smoothed[i - segment.begin]);
+        write_row(out, i, timestamps_sec[i], "smoothed", was_detected, *smoothed[i]);
     }
 }
 

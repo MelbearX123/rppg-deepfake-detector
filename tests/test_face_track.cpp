@@ -104,37 +104,53 @@ TEST(FaceTrack, NoSegmentWithoutFaces) {
     EXPECT_FALSE(rppg::longest_segment({std::nullopt, std::nullopt}));
 }
 
-// --- smooth_track / landmark_jitter_px ---
+// --- smooth_segment / landmark_jitter_px ---
 
 TEST(FaceTrack, SmoothingDoesNotLagSteadyMotion) {
     // Moving 2 px per frame: a centered average of a straight line is the line
     // itself, so the smoothed position must be exactly where the face is.
-    std::vector<rppg::FaceGeometry> faces;
+    rppg::FaceTrack track;
     for (int i = 0; i < 20; ++i) {
-        faces.push_back(face_at(2.0 * i, 0));
+        track.push_back(face_at(2.0 * i, 0));
     }
-    const auto smoothed = rppg::smooth_track(faces, 5);
-    for (std::size_t i = 0; i < faces.size(); ++i) {
-        EXPECT_NEAR(smoothed[i].box.x, faces[i].box.x, 1e-9);
+    const auto smoothed = rppg::smooth_segment(track, {0, track.size()}, 5);
+    for (std::size_t i = 0; i < track.size(); ++i) {
+        EXPECT_NEAR(smoothed[i]->box.x, track[i]->box.x, 1e-9);
     }
 }
 
 TEST(FaceTrack, SmoothingReducesJitter) {
     // Still face, wobbling 2 px left and right every frame.
-    std::vector<rppg::FaceGeometry> faces;
+    rppg::FaceTrack track;
     for (int i = 0; i < 20; ++i) {
-        faces.push_back(face_at(i % 2 == 0 ? 2.0 : -2.0, 0));
+        track.push_back(face_at(i % 2 == 0 ? 2.0 : -2.0, 0));
     }
-    const double before = rppg::landmark_jitter_px(faces);
-    const double after = rppg::landmark_jitter_px(rppg::smooth_track(faces, 5));
+    const double before = rppg::landmark_jitter_px(track);
+    const double after =
+        rppg::landmark_jitter_px(rppg::smooth_segment(track, {0, track.size()}, 5));
     EXPECT_DOUBLE_EQ(before, 8.0);  // |2 - 2(-2) + 2| = 8
     EXPECT_LT(after, before / 4.0);
 }
 
+TEST(FaceTrack, SmoothingLeavesFramesOutsideSegmentEmpty) {
+    const rppg::FaceTrack track = {face_at(0, 0), face_at(1, 0), face_at(2, 0), face_at(3, 0)};
+    const auto smoothed = rppg::smooth_segment(track, {1, 3}, 1);
+    ASSERT_EQ(smoothed.size(), track.size());
+    EXPECT_FALSE(smoothed[0]);
+    EXPECT_TRUE(smoothed[1] && smoothed[2]);
+    EXPECT_FALSE(smoothed[3]);
+}
+
 TEST(FaceTrack, JitterOfSteadyMotionIsZero) {
-    std::vector<rppg::FaceGeometry> faces;
+    rppg::FaceTrack track;
     for (int i = 0; i < 10; ++i) {
-        faces.push_back(face_at(3.0 * i, 1.0 * i));
+        track.push_back(face_at(3.0 * i, 1.0 * i));
     }
-    EXPECT_NEAR(rppg::landmark_jitter_px(faces), 0.0, 1e-9);
+    EXPECT_NEAR(rppg::landmark_jitter_px(track), 0.0, 1e-9);
+}
+
+TEST(FaceTrack, JitterSkipsFramesNextToGaps) {
+    const rppg::FaceTrack track = {face_at(0, 0),  face_at(1, 0),  face_at(2, 0), std::nullopt,
+                                   face_at(50, 0), face_at(51, 0), face_at(52, 0)};
+    EXPECT_NEAR(rppg::landmark_jitter_px(track), 0.0, 1e-9);
 }

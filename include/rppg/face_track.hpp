@@ -30,11 +30,8 @@ struct Segment {
 
 std::optional<Segment> longest_segment(const FaceTrack& track);
 
-std::vector<FaceGeometry> faces_in(const FaceTrack& track, const Segment& segment);
+FaceTrack smooth_segment(const FaceTrack& track, const Segment& segment, std::size_t window_frames);
 
-std::vector<FaceGeometry> smooth_track(const std::vector<FaceGeometry>& faces,
-                                       std::size_t window_frames);
-
-double landmark_jitter_px(const std::vector<FaceGeometry>& faces);
+double landmark_jitter_px(const FaceTrack& track);
 
 }  // namespace rppg

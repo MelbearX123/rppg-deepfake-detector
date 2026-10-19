@@ -3,6 +3,7 @@
 #include "rppg/limits.hpp"
 #include "rppg/signal.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 
@@ -12,6 +13,7 @@ namespace {
 
 constexpr std::size_t kCoordCount = 4 + 2 * kLandmarkCount;
 using Coords = std::array<double, kCoordCount>;
+using Columns = std::array<std::vector<std::optional<double>>, kCoordCount>;
 
 Coords to_coords(const FaceGeometry& face) {
     Coords c{face.box.x, face.box.y, face.box.width, face.box.height};
@@ -29,6 +31,38 @@ FaceGeometry from_coords(const Coords& c) {
         face.landmarks[l] = Point{c[4 + 2 * l], c[5 + 2 * l]};
     }
     return face;
+}
+
+Columns to_columns(const FaceTrack& track) {
+    Columns columns;
+    for (auto& column : columns) {
+        column.resize(track.size());
+    }
+    for (std::size_t i = 0; i < track.size(); ++i) {
+        if (!track[i]) {
+            continue;
+        }
+        const Coords coords = to_coords(*track[i]);
+        for (std::size_t c = 0; c < kCoordCount; ++c) {
+            columns[c][i] = coords[c];
+        }
+    }
+    return columns;
+}
+
+FaceTrack from_columns(const Columns& columns) {
+    FaceTrack track(columns[0].size());
+    for (std::size_t i = 0; i < track.size(); ++i) {
+        if (!columns[0][i]) {
+            continue;
+        }
+        Coords coords;
+        for (std::size_t c = 0; c < kCoordCount; ++c) {
+            coords[c] = *columns[c][i];
+        }
+        track[i] = from_coords(coords);
+    }
+    return track;
 }
 
 }  // namespace
@@ -59,28 +93,11 @@ std::optional<FaceGeometry> FaceFollower::next(const std::vector<FaceGeometry>& 
 }
 
 FaceTrack fill_short_gaps(const FaceTrack& track, std::size_t max_gap_frames) {
-    std::array<std::vector<std::optional<double>>, kCoordCount> filled;
-    for (std::size_t c = 0; c < kCoordCount; ++c) {
-        std::vector<std::optional<double>> series(track.size());
-        for (std::size_t i = 0; i < track.size(); ++i) {
-            if (track[i]) {
-                series[i] = to_coords(*track[i])[c];
-            }
-        }
-        filled[c] = fill_gaps(series, max_gap_frames);
+    Columns columns = to_columns(track);
+    for (auto& column : columns) {
+        column = fill_gaps(column, max_gap_frames);
     }
-    FaceTrack out(track.size());
-    for (std::size_t i = 0; i < track.size(); ++i) {
-        if (!filled[0][i]) {
-            continue;
-        }
-        Coords coords;
-        for (std::size_t c = 0; c < kCoordCount; ++c) {
-            coords[c] = *filled[c][i];
-        }
-        out[i] = from_coords(coords);
-    }
-    return out;
+    return from_columns(columns);
 }
 
 std::optional<Segment> longest_segment(const FaceTrack& track) {
@@ -101,54 +118,40 @@ std::optional<Segment> longest_segment(const FaceTrack& track) {
     return best;
 }
 
-std::vector<FaceGeometry> faces_in(const FaceTrack& track, const Segment& segment) {
-    std::vector<FaceGeometry> faces;
-    faces.reserve(segment.size());
-    for (std::size_t i = segment.begin; i < segment.end; ++i) {
-        faces.push_back(*track[i]);
+FaceTrack smooth_segment(const FaceTrack& track, const Segment& segment,
+                         std::size_t window_frames) {
+    Columns columns = to_columns(track);
+    for (auto& column : columns) {
+        std::vector<double> values;
+        values.reserve(segment.size());
+        for (std::size_t i = segment.begin; i < segment.end; ++i) {
+            values.push_back(*column[i]);
+        }
+        const std::vector<double> smoothed = moving_average_centered(values, window_frames);
+
+        std::fill(column.begin(), column.end(), std::nullopt);
+        for (std::size_t i = segment.begin; i < segment.end; ++i) {
+            column[i] = smoothed[i - segment.begin];
+        }
     }
-    return faces;
+    return from_columns(columns);
 }
 
-std::vector<FaceGeometry> smooth_track(const std::vector<FaceGeometry>& faces,
-                                       std::size_t window_frames) {
-    std::array<std::vector<double>, kCoordCount> smoothed;
-    for (std::size_t c = 0; c < kCoordCount; ++c) {
-        std::vector<double> series;
-        series.reserve(faces.size());
-        for (const FaceGeometry& face : faces) {
-            series.push_back(to_coords(face)[c]);
-        }
-        smoothed[c] = moving_average_centered(series, window_frames);
-    }
-    std::vector<FaceGeometry> out;
-    out.reserve(faces.size());
-    for (std::size_t i = 0; i < faces.size(); ++i) {
-        Coords coords;
-        for (std::size_t c = 0; c < kCoordCount; ++c) {
-            coords[c] = smoothed[c][i];
-        }
-        out.push_back(from_coords(coords));
-    }
-    return out;
-}
-
-double landmark_jitter_px(const std::vector<FaceGeometry>& faces) {
-    if (faces.size() < 3) {
-        return 0.0;
-    }
+double landmark_jitter_px(const FaceTrack& track) {
     std::vector<double> wobble;
-    wobble.reserve((faces.size() - 2) * kLandmarkCount);
-    for (std::size_t i = 1; i + 1 < faces.size(); ++i) {
+    for (std::size_t i = 1; i + 1 < track.size(); ++i) {
+        if (!track[i - 1] || !track[i] || !track[i + 1]) {
+            continue;
+        }
         for (std::size_t l = 0; l < kLandmarkCount; ++l) {
-            const Point& prev = faces[i - 1].landmarks[l];
-            const Point& cur = faces[i].landmarks[l];
-            const Point& next = faces[i + 1].landmarks[l];
+            const Point& prev = track[i - 1]->landmarks[l];
+            const Point& cur = track[i]->landmarks[l];
+            const Point& next = track[i + 1]->landmarks[l];
             wobble.push_back(
                 std::hypot(prev.x - 2.0 * cur.x + next.x, prev.y - 2.0 * cur.y + next.y));
         }
     }
-    return median(wobble);
+    return wobble.empty() ? 0.0 : median(wobble);
 }
 
 }  // namespace rppg
