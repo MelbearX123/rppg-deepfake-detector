@@ -17,8 +17,13 @@ add_library(rppg_core
     src/compression.cpp
     src/face_geometry.cpp
     src/face_track.cpp
+    src/pixel_stats.cpp
+    src/region_signal.cpp
+    src/regions.cpp
     src/requirements.cpp
     src/signal.cpp
+    src/signals_csv.cpp
+    src/skin_model.cpp
     src/timing.cpp
     src/track_csv.cpp
 )
@@ -29,6 +34,7 @@ target_link_libraries(rppg_core PUBLIC Eigen3::Eigen)
 add_library(rppg_vision
     src/annotate.cpp
     src/face.cpp
+    src/region_sampler.cpp
     src/video.cpp
 )
 target_link_libraries(rppg_vision PUBLIC rppg_core opencv::opencv)
@@ -43,8 +49,11 @@ find_package(GTest REQUIRED)
 add_executable(rppg_tests
     tests/test_compression.cpp
     tests/test_face_track.cpp
+    tests/test_pixel_stats.cpp
+    tests/test_regions.cpp
     tests/test_requirements.cpp
     tests/test_signal.cpp
+    tests/test_skin_model.cpp
     tests/test_timing.cpp
 )
 target_link_libraries(rppg_tests PRIVATE rppg_core GTest::gtest_main)
