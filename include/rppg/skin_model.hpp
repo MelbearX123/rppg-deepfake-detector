@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <vector>
 
 namespace rppg {
@@ -21,5 +22,8 @@ struct SkinModel {
 SkinModel fit_skin_model(const std::vector<YCrCb>& samples);
 
 bool is_skin(const SkinModel& model, const YCrCb& pixel);
+
+void append_evenly_spaced(std::vector<YCrCb>& samples, const std::vector<YCrCb>& region,
+                          std::size_t max_count);
 
 }  // namespace rppg

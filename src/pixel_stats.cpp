@@ -8,7 +8,7 @@ namespace rppg {
 
 namespace {
 
-//Standard brightness weights (ITU-R BT.601): eyes are most sensitive to green.
+// Standard brightness weights (ITU-R BT.601): eyes are most sensitive to green.
 constexpr double kBlueWeight = 0.114;
 constexpr double kGreenWeight = 0.587;
 constexpr double kRedWeight = 0.299;

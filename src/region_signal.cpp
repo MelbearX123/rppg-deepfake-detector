@@ -32,8 +32,8 @@ double median_coverage(const RegionSeries& series, const Segment& segment) {
     return coverage.empty() ? 0.0 : median(coverage);
 }
 
-bool is_usable(const RegionSeries& series, const Segment& segment) {
-    return median_coverage(series, segment) >= limits::kMinRegionCoverage;
+bool is_usable(double median_coverage) {
+    return median_coverage >= limits::kMinRegionCoverage;
 }
 
 }  // namespace rppg

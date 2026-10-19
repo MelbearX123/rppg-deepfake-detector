@@ -30,6 +30,6 @@ RegionSample measure_region(const RegionPixels& pixels, const SkinModel& model);
 
 double median_coverage(const RegionSeries& series, const Segment& segment);
 
-bool is_usable(const RegionSeries& series, const Segment& segment);
+bool is_usable(double median_coverage);
 
 }  // namespace rppg

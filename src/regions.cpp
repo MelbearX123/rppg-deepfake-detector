@@ -1,7 +1,5 @@
 #include "rppg/regions.hpp"
 
-#include <cmath>
-
 namespace rppg {
 
 namespace {

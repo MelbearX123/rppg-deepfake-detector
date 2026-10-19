@@ -33,9 +33,10 @@ def remove_drift(times, values):
     """Percent change from the average, minus a ~1 s moving average."""
     percent = (values / values.mean() - 1.0) * 100.0
     fps = (len(times) - 1) / (times[-1] - times[0])
-    window = max(1, round(fps))
-    drift = np.convolve(percent, np.ones(window) / window, mode="same")
-    return percent - drift
+    window = np.ones(max(1, round(fps)))
+    sums = np.convolve(percent, window, mode="same")
+    counts = np.convolve(np.ones_like(percent), window, mode="same")
+    return percent - sums / counts
 
 
 def main():

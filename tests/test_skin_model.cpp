@@ -1,8 +1,8 @@
-#include "rppg/region_signal.hpp"
 #include "rppg/skin_model.hpp"
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <stdexcept>
 #include <vector>
 
@@ -22,6 +22,10 @@ std::vector<rppg::YCrCb> samples_around(double y, double cr, double cb) {
 constexpr rppg::YCrCb kLightSkin{170, 150, 110};
 constexpr rppg::YCrCb kDarkSkin{70, 145, 118};
 constexpr rppg::YCrCb kDarkHair{40, 131, 127};
+
+// Measured on a webcam video: hair with nearly the same Cr/Cb as the skin.
+constexpr rppg::YCrCb kWebcamSkin{185, 133, 132};
+constexpr rppg::YCrCb kWebcamHair{51, 132, 130};
 
 }  // namespace
 
@@ -52,9 +56,10 @@ TEST(SkinModel, ModerateShadowStillCountsAsSkin) {
 
 TEST(SkinModel, DarkHairWithSkinLikeColorIsRejectedByBrightness) {
     // The webcam case: hair with the same Cr/Cb as skin, but much darker.
-    const auto model = rppg::fit_skin_model(samples_around(185, 133, 132));
-    EXPECT_TRUE(rppg::is_skin(model, {185, 133, 132}));
-    EXPECT_FALSE(rppg::is_skin(model, {51, 132, 130}));
+    const auto model =
+        rppg::fit_skin_model(samples_around(kWebcamSkin.y, kWebcamSkin.cr, kWebcamSkin.cb));
+    EXPECT_TRUE(rppg::is_skin(model, kWebcamSkin));
+    EXPECT_FALSE(rppg::is_skin(model, kWebcamHair));
 }
 
 TEST(SkinModel, StaysOnSkinWhenSomeSamplesAreHair) {
@@ -68,32 +73,37 @@ TEST(SkinModel, StaysOnSkinWhenSomeSamplesAreHair) {
     EXPECT_FALSE(rppg::is_skin(model, kDarkHair));
 }
 
-// --- measure_region / is_usable ---
+// --- append_evenly_spaced ---
 
-TEST(RegionSignal, MeasuresOnlySkinPixels) {
-    const auto model =
-        rppg::fit_skin_model(samples_around(kLightSkin.y, kLightSkin.cr, kLightSkin.cb));
-    rppg::RegionPixels pixels;
-    for (int i = 0; i < 6; ++i) {
-        pixels.colors.push_back({90, 120, 200});
-        pixels.ycrcb.push_back(kLightSkin);
-    }
-    for (int i = 0; i < 4; ++i) {
-        pixels.colors.push_back({20, 20, 25});
-        pixels.ycrcb.push_back(kDarkHair);
-    }
-    const auto sample = rppg::measure_region(pixels, model);
-    EXPECT_EQ(sample.skin_pixels, 6u);
-    EXPECT_DOUBLE_EQ(sample.coverage, 0.6);
-    ASSERT_TRUE(sample.color);
-    EXPECT_DOUBLE_EQ(sample.color->r, 200.0);
+TEST(SkinModel, EveryRegionContributesTheSameNumberOfSamples) {
+    const std::vector<rppg::YCrCb> big(2000, kLightSkin);
+    const std::vector<rppg::YCrCb> small(999, kDarkSkin);
+    std::vector<rppg::YCrCb> samples;
+    rppg::append_evenly_spaced(samples, big, 500);
+    rppg::append_evenly_spaced(samples, small, 500);
+    ASSERT_EQ(samples.size(), 1000u);
+    EXPECT_EQ(std::count_if(samples.begin(), samples.end(),
+                            [](const rppg::YCrCb& p) { return p.y == kLightSkin.y; }),
+              500);
 }
 
-TEST(RegionSignal, UsableDependsOnTypicalCoverage) {
-    rppg::RegionSeries series(5);
-    for (std::size_t i = 0; i < series.size(); ++i) {
-        series[i].coverage = i < 3 ? 0.2 : 0.9;  // mostly hair in a typical frame
+TEST(SkinModel, SmallRegionGivesAllItsPixels) {
+    const std::vector<rppg::YCrCb> region(30, kLightSkin);
+    std::vector<rppg::YCrCb> samples;
+    rppg::append_evenly_spaced(samples, region, 500);
+    EXPECT_EQ(samples.size(), 30u);
+}
+
+TEST(SkinModel, SamplesSpreadAcrossTheRegion) {
+    // Pixels numbered 0..9 by Y; taking 5 should pick every other one.
+    std::vector<rppg::YCrCb> region;
+    for (int i = 0; i < 10; ++i) {
+        region.push_back({static_cast<double>(i), 0, 0});
     }
-    EXPECT_FALSE(rppg::is_usable(series, {0, 5}));
-    EXPECT_TRUE(rppg::is_usable(series, {3, 5}));
+    std::vector<rppg::YCrCb> samples;
+    rppg::append_evenly_spaced(samples, region, 5);
+    ASSERT_EQ(samples.size(), 5u);
+    for (std::size_t k = 0; k < samples.size(); ++k) {
+        EXPECT_DOUBLE_EQ(samples[k].y, 2.0 * k);
+    }
 }

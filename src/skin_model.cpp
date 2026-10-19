@@ -52,6 +52,14 @@ SkinModel fit_skin_model(const std::vector<YCrCb>& samples) {
     return model;
 }
 
+void append_evenly_spaced(std::vector<YCrCb>& samples, const std::vector<YCrCb>& region,
+                          std::size_t max_count) {
+    const std::size_t count = std::min(region.size(), max_count);
+    for (std::size_t k = 0; k < count; ++k) {
+        samples.push_back(region[k * region.size() / count]);
+    }
+}
+
 bool is_skin(const SkinModel& model, const YCrCb& pixel) {
     return pixel.y >= model.min_brightness &&
            std::abs(pixel.cr - model.cr_center) <= model.cr_tolerance &&

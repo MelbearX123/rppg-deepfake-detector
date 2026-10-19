@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+
 namespace rppg::limits {
 
 inline constexpr double kMinDurationSec = 10.0;
@@ -16,6 +18,7 @@ inline constexpr double kMaxGapSec = 0.5;
 inline constexpr double kSmoothingWindowSec = 0.3;
 
 inline constexpr double kSkinModelSampleIntervalSec = 1.0;
+inline constexpr std::size_t kSkinSamplesPerRegion = 500;
 inline constexpr double kSkinToleranceMads = 3.0;
 
 inline constexpr double kMinSkinBrightnessRatio = 0.5;
