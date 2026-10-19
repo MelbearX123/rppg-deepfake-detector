@@ -60,4 +60,23 @@ void write_pulse_csv(const std::string& path, const RegionPulses& pulses) {
     }
 }
 
+void write_heart_rate_csv(const std::string& path, const HeartRates& rates) {
+    std::ofstream out(path);
+    if (!out) {
+        throw std::runtime_error("could not write " + path);
+    }
+
+    out << "region,center_sec,peak_bpm,smoothed_bpm,snr_db\n";
+    out << std::fixed << std::setprecision(3);
+    for (std::size_t r = 0; r < kRegionCount; ++r) {
+        if (!rates.regions[r]) {
+            continue;
+        }
+        for (const WindowEstimate& window : rates.regions[r]->windows) {
+            out << region_name(static_cast<Region>(r)) << ',' << window.center_sec << ','
+                << window.peak_bpm << ',' << window.smoothed_bpm << ',' << window.snr_db << '\n';
+        }
+    }
+}
+
 }  // namespace rppg

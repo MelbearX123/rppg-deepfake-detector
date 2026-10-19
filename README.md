@@ -1,6 +1,6 @@
 # rPPG Deepfake Detector
 
-> **This project is a work in progress.** Right now it reads a video with correct per-frame timing, checks that the video is usable (length, compression, face size), finds and tracks the face with 5 landmarks in every frame, and measures the color of five skin regions (glabella, forehead, upper nasal dorsum, both malars) in every frame, skipping hair with a per-person skin model, then turns each region's color into a pulse signal with POS and filters it to the heart-rate band. Heart rate and the rest are planned below.
+> **This project is a work in progress.** Right now it reads a video with correct per-frame timing, checks that the video is usable (length, compression, face size), finds and tracks the face with 5 landmarks in every frame, and measures the color of five skin regions (glabella, forehead, upper nasal dorsum, both malars) in every frame, skipping hair with a per-person skin model, then turns each region's color into a pulse signal with POS, filters it to the heart-rate band, and estimates the heart rate, saying "inconclusive" when the signal is too weak to trust. Checking accuracy against real pulse readings and the rest are planned below.
 
 ## What I'm building
 
@@ -15,7 +15,7 @@ When your heart beats, a little more blood flows into the skin of your face, and
 3. **Average the color** of each region in every frame, which gives a red, green, and blue signal over time. A skin model learned from each person's own face skips hair and shadow, and a trimmed mean drops glare.
 4. **Turn the colors into a pulse signal** using the POS algorithm (Wang et al., 2017), which combines R, G, and B so that lighting changes and head movement mostly cancel out.
 5. **Clean the signal** by filtering to 0.7–4 Hz (42–240 BPM, the range of human heart rates). POS already removes most slow drift, so a separate detrending step didn't change anything when I measured it.
-6. **Estimate the heart rate** with an FFT: the strongest frequency in that range is the pulse.
+6. **Estimate the heart rate** from the spectrum of each 10 s window: the strongest frequency in that range is the pulse. A median filter removes one-off jumps, and the signal-to-noise ratio (SNR) decides whether the answer can be trusted.
 7. **Check that it actually works** by comparing my heart rates to real pulse-sensor readings from the UBFC-rPPG dataset (see [References](#references)). I want this working before I touch any deepfakes.
 8. **Detect deepfakes** by comparing the pulse between face regions and training a classifier on real and fake videos from FaceForensics++. If the signal is too weak to trust, the tool should say "inconclusive" instead of guessing.
 9. **Measure and optimize speed**, then package it with Docker and set up CI.
@@ -60,10 +60,29 @@ To check the pulse signals, save them and plot each region's signal with its spe
 .venv/bin/python scripts/plot_pulse.py results/pulse.csv
 ```
 
+To check the heart rate, save the per-window estimates and plot them with their SNR:
+
+```bash
+./build/Release/rppg_detect path/to/video.mp4 --heart-rate-csv results/heart_rate.csv
+.venv/bin/python scripts/plot_heart_rate.py results/heart_rate.csv
+```
+
 ## References
 
 **UBFC-rPPG dataset:**
 S. Bobbia, R. Macwan, Y. Benezeth, A. Mansouri, J. Dubois, "Unsupervised skin tissue segmentation for remote photoplethysmography", *Pattern Recognition Letters*, 2017.
 
+**Face detection (YuNet):**
+W. Wu, H. Peng, S. Yu, "YuNet: A Tiny Millisecond-level Face Detector", *Machine Intelligence Research*, vol. 20, no. 5, pp. 656–665, 2023. https://doi.org/10.1007/s11633-023-1423-y
+
 **Face regions:**
 S. Li, M. Elgendi, C. Menon, "Optimal facial regions for remote heart rate measurement during physical and cognitive activities", *npj Cardiovascular Health*, vol. 1, art. 33, 2024. https://doi.org/10.1038/s44325-024-00033-7
+
+**Pulse extraction (POS):**
+W. Wang, A. C. den Brinker, S. Stuijk, G. de Haan, "Algorithmic Principles of Remote PPG", *IEEE Transactions on Biomedical Engineering*, vol. 64, no. 7, 2017.
+
+**Bandpass filter (biquad formulas):**
+R. Bristow-Johnson, "Audio EQ Cookbook", W3C Working Group Note, 2021. https://www.w3.org/TR/audio-eq-cookbook/
+
+**Signal quality (SNR):**
+G. de Haan, V. Jeanne, "Robust Pulse Rate From Chrominance-Based rPPG", *IEEE Transactions on Biomedical Engineering*, vol. 60, no. 10, pp. 2878–2886, 2013.

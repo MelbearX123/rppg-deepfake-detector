@@ -75,3 +75,13 @@ TEST(Requirements, NoUsableRegionIsRejected) {
 TEST(Requirements, OneUsableRegionIsEnough) {
     EXPECT_EQ(rppg::check_region_requirements(1).status, rppg::RequirementStatus::kOk);
 }
+
+TEST(Requirements, NoHeartRateIsInconclusive) {
+    const auto result = rppg::check_heart_rate(std::nullopt);
+    EXPECT_EQ(result.status, rppg::RequirementStatus::kInconclusive);
+    EXPECT_EQ(result.reason, "no region's median SNR reached 0.0 dB");
+}
+
+TEST(Requirements, AHeartRateIsOk) {
+    EXPECT_EQ(rppg::check_heart_rate(72.0).status, rppg::RequirementStatus::kOk);
+}

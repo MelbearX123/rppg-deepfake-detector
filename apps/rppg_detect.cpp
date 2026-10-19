@@ -1,11 +1,11 @@
 // rppg_detect: reads a video, finds and tracks the face, measures the color of
 // five skin regions in every frame, turns each region's color into a pulse
-// signal (POS), filters it to the heart-rate band, and prints a report.
-// Stages 1-5 of the pipeline.
+// signal (POS), filters it to the heart-rate band, estimates the heart rate,
+// and prints a report. Stages 1-6 of the pipeline.
 //
 // Usage: rppg_detect <video> [--model <yunet.onnx>] [--debug-dir <dir>]
 //                            [--landmarks-csv <file>] [--signals-csv <file>]
-//                            [--pulse-csv <file>]
+//                            [--pulse-csv <file>] [--heart-rate-csv <file>]
 //
 // Exit codes:
 //   0  OK
@@ -14,9 +14,11 @@
 //   3  no face found, or the face is too small
 //   4  face never tracked long enough without a break
 //   5  no skin region is usable (e.g. all covered by hair)
+//   6  inconclusive: no region's pulse was strong enough (SNR) to trust
 
 #include "rppg/face/face.hpp"
 #include "rppg/face/face_track.hpp"
+#include "rppg/heart_rate/heart_rate.hpp"
 #include "rppg/limits.hpp"
 #include "rppg/output/annotate.hpp"
 #include "rppg/output/signals_csv.hpp"
@@ -57,6 +59,7 @@ constexpr int kExitTooShort = 2;
 constexpr int kExitNoUsableFace = 3;
 constexpr int kExitTrackTooShort = 4;
 constexpr int kExitNoUsableRegion = 5;
+constexpr int kExitInconclusive = 6;
 
 constexpr int kLabelWidth = 14;
 constexpr int kRegionNameWidth = 14;
@@ -74,6 +77,7 @@ struct Options {
     std::string landmarks_csv;
     std::string signals_csv;
     std::string pulse_csv;
+    std::string heart_rate_csv;
 };
 
 struct DetectionPass {
@@ -98,7 +102,7 @@ using RegionCoverage = std::array<double, rppg::kRegionCount>;
 void print_usage() {
     std::cerr << "usage: rppg_detect <video> [--model <yunet.onnx>] [--debug-dir <dir>]\n"
                  "                           [--landmarks-csv <file>] [--signals-csv <file>]\n"
-                 "                           [--pulse-csv <file>]\n";
+                 "                           [--pulse-csv <file>] [--heart-rate-csv <file>]\n";
 }
 
 bool require_file(const std::string& path, const std::string& description) {
@@ -124,6 +128,8 @@ std::optional<Options> parse_args(int argc, char** argv) {
             options.signals_csv = argv[++i];
         } else if (arg == "--pulse-csv" && has_value) {
             options.pulse_csv = argv[++i];
+        } else if (arg == "--heart-rate-csv" && has_value) {
+            options.heart_rate_csv = argv[++i];
         } else if (options.video_path.empty() && arg.rfind("--", 0) != 0) {
             options.video_path = arg;
         } else {
@@ -376,6 +382,29 @@ void print_pulse_report(const RegionCoverage& coverage, const rppg::RegionPulses
     }
 }
 
+void print_heart_rate_report(const rppg::HeartRates& rates) {
+    bool first = true;
+    for (std::size_t r = 0; r < rppg::kRegionCount; ++r) {
+        if (!rates.regions[r]) {
+            continue;
+        }
+        const rppg::RegionHeartRate& region = *rates.regions[r];
+        field(first ? "Heart rate:" : "")
+            << std::left << std::setw(kRegionNameWidth)
+            << rppg::region_name(static_cast<rppg::Region>(r)) << std::right << std::setprecision(0)
+            << std::setw(3) << region.bpm << " bpm  SNR " << std::setprecision(1) << region.snr_db
+            << " dB" << (region.snr_db >= rppg::limits::kMinSnrDb ? "" : "  (too weak)") << "\n";
+        first = false;
+    }
+    field("") << std::left << std::setw(kRegionNameWidth) << "face" << std::right;
+    if (rates.bpm) {
+        std::cout << std::setprecision(0) << std::setw(3) << *rates.bpm << " bpm\n";
+    } else {
+        std::cout << "inconclusive\n";
+    }
+    std::cout << std::setprecision(2);
+}
+
 int exit_code_for(rppg::RequirementStatus status) {
     switch (status) {
         case rppg::RequirementStatus::kOk:
@@ -389,6 +418,8 @@ int exit_code_for(rppg::RequirementStatus status) {
             return kExitTrackTooShort;
         case rppg::RequirementStatus::kNoUsableRegion:
             return kExitNoUsableRegion;
+        case rppg::RequirementStatus::kInconclusive:
+            return kExitInconclusive;
     }
     return kExitBadInput;
 }
@@ -396,6 +427,8 @@ int exit_code_for(rppg::RequirementStatus status) {
 int report_result(const rppg::RequirementResult& result) {
     if (result.status == rppg::RequirementStatus::kOk) {
         field("Result:") << "OK\n";
+    } else if (result.status == rppg::RequirementStatus::kInconclusive) {
+        field("Result:") << "INCONCLUSIVE: " << result.reason << "\n";
     } else {
         field("Result:") << "REJECTED: " << result.reason << "\n";
     }
@@ -477,7 +510,20 @@ int main(int argc, char** argv) {
             field("Pulse CSV:") << "written to " << options->pulse_csv << "\n";
         }
 
-        return report_result(rppg::check_region_requirements(count_pulses(pulses)));
+        const rppg::RequirementResult region_result =
+            rppg::check_region_requirements(count_pulses(pulses));
+        if (region_result.status != rppg::RequirementStatus::kOk) {
+            return report_result(region_result);
+        }
+
+        const rppg::HeartRates rates = rppg::estimate_heart_rates(pulses);
+        print_heart_rate_report(rates);
+        if (!options->heart_rate_csv.empty()) {
+            rppg::write_heart_rate_csv(options->heart_rate_csv, rates);
+            field("Heart CSV:") << "written to " << options->heart_rate_csv << "\n";
+        }
+
+        return report_result(rppg::check_heart_rate(rates.bpm));
     } catch (const std::exception& e) {
         std::cerr << "error: " << e.what() << "\n";
         return kExitBadInput;

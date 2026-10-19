@@ -105,6 +105,23 @@ std::vector<double> moving_average_centered(const std::vector<double>& x, std::s
     return out;
 }
 
+std::vector<double> median_filter_centered(const std::vector<double>& x, std::size_t window) {
+    if (window % 2 == 0) {
+        throw std::invalid_argument("median_filter_centered: window must be odd");
+    }
+    const std::size_t half = window / 2;
+
+    std::vector<double> out;
+    out.reserve(x.size());
+    for (std::size_t i = 0; i < x.size(); ++i) {
+        const std::size_t reach = std::min({half, i, x.size() - 1 - i});
+        const auto first = x.begin() + static_cast<std::ptrdiff_t>(i - reach);
+        const auto last = x.begin() + static_cast<std::ptrdiff_t>(i + reach + 1);
+        out.push_back(median(std::vector<double>(first, last)));
+    }
+    return out;
+}
+
 std::vector<std::optional<double>> fill_gaps(const std::vector<std::optional<double>>& x,
                                              std::size_t max_gap) {
     std::vector<std::optional<double>> out = x;
