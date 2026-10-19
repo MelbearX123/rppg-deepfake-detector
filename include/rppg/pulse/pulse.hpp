@@ -1,9 +1,9 @@
 #pragma once
 
-#include "rppg/face_track.hpp"
-#include "rppg/pixel_stats.hpp"
-#include "rppg/region_signal.hpp"
-#include "rppg/regions.hpp"
+#include "rppg/face/face_track.hpp"
+#include "rppg/regions/pixel_stats.hpp"
+#include "rppg/regions/region_signal.hpp"
+#include "rppg/regions/regions.hpp"
 
 #include <array>
 #include <cstddef>

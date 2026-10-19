@@ -1,4 +1,4 @@
-#include "rppg/compression.hpp"
+#include "rppg/video/compression.hpp"
 
 #include <gtest/gtest.h>
 

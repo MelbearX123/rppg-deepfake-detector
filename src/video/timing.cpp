@@ -1,7 +1,7 @@
-#include "rppg/timing.hpp"
+#include "rppg/video/timing.hpp"
 
 #include "rppg/limits.hpp"
-#include "rppg/signal.hpp"
+#include "rppg/pulse/signal.hpp"
 
 namespace rppg {
 

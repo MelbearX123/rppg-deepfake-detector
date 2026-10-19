@@ -1,4 +1,4 @@
-#include "rppg/face_geometry.hpp"
+#include "rppg/face/face_geometry.hpp"
 
 #include <algorithm>
 

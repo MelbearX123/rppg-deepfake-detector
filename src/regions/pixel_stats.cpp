@@ -1,4 +1,4 @@
-#include "rppg/pixel_stats.hpp"
+#include "rppg/regions/pixel_stats.hpp"
 
 #include <algorithm>
 #include <cmath>

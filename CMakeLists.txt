@@ -14,30 +14,30 @@ find_package(Eigen3 REQUIRED)
 
 # --- Core library: signal math, no OpenCV. Fast to build, easy to test. ---
 add_library(rppg_core
-    src/compression.cpp
-    src/face_geometry.cpp
-    src/face_track.cpp
-    src/filter.cpp
-    src/pixel_stats.cpp
-    src/pulse.cpp
-    src/region_signal.cpp
-    src/regions.cpp
+    src/face/face_geometry.cpp
+    src/face/face_track.cpp
+    src/output/signals_csv.cpp
+    src/output/track_csv.cpp
+    src/pulse/filter.cpp
+    src/pulse/pulse.cpp
+    src/pulse/signal.cpp
+    src/regions/pixel_stats.cpp
+    src/regions/region_signal.cpp
+    src/regions/regions.cpp
+    src/regions/skin_model.cpp
     src/requirements.cpp
-    src/signal.cpp
-    src/signals_csv.cpp
-    src/skin_model.cpp
-    src/timing.cpp
-    src/track_csv.cpp
+    src/video/compression.cpp
+    src/video/timing.cpp
 )
 target_include_directories(rppg_core PUBLIC include)
 target_link_libraries(rppg_core PUBLIC Eigen3::Eigen)
 
 # --- Vision library: everything that touches images or video files. ---
 add_library(rppg_vision
-    src/annotate.cpp
-    src/face.cpp
-    src/region_sampler.cpp
-    src/video.cpp
+    src/face/face.cpp
+    src/output/annotate.cpp
+    src/regions/region_sampler.cpp
+    src/video/video.cpp
 )
 target_link_libraries(rppg_vision PUBLIC rppg_core opencv::opencv)
 

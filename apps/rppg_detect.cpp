@@ -15,22 +15,22 @@
 //   4  face never tracked long enough without a break
 //   5  no skin region is usable (e.g. all covered by hair)
 
-#include "rppg/annotate.hpp"
-#include "rppg/compression.hpp"
-#include "rppg/face.hpp"
-#include "rppg/face_track.hpp"
+#include "rppg/face/face.hpp"
+#include "rppg/face/face_track.hpp"
 #include "rppg/limits.hpp"
-#include "rppg/pulse.hpp"
-#include "rppg/region_sampler.hpp"
-#include "rppg/region_signal.hpp"
-#include "rppg/regions.hpp"
+#include "rppg/output/annotate.hpp"
+#include "rppg/output/signals_csv.hpp"
+#include "rppg/output/track_csv.hpp"
+#include "rppg/pulse/pulse.hpp"
+#include "rppg/pulse/signal.hpp"
+#include "rppg/regions/region_sampler.hpp"
+#include "rppg/regions/region_signal.hpp"
+#include "rppg/regions/regions.hpp"
+#include "rppg/regions/skin_model.hpp"
 #include "rppg/requirements.hpp"
-#include "rppg/signal.hpp"
-#include "rppg/signals_csv.hpp"
-#include "rppg/skin_model.hpp"
-#include "rppg/timing.hpp"
-#include "rppg/track_csv.hpp"
-#include "rppg/video.hpp"
+#include "rppg/video/compression.hpp"
+#include "rppg/video/timing.hpp"
+#include "rppg/video/video.hpp"
 
 #include <opencv2/imgcodecs.hpp>
 

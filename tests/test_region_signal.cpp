@@ -1,4 +1,4 @@
-#include "rppg/region_signal.hpp"
+#include "rppg/regions/region_signal.hpp"
 
 #include "rppg/limits.hpp"
 

@@ -1,4 +1,4 @@
-#include "rppg/filter.hpp"
+#include "rppg/pulse/filter.hpp"
 
 #include <algorithm>
 #include <cmath>

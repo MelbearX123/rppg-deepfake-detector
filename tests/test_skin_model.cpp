@@ -1,4 +1,4 @@
-#include "rppg/skin_model.hpp"
+#include "rppg/regions/skin_model.hpp"
 
 #include <gtest/gtest.h>
 

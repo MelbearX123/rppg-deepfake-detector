@@ -1,7 +1,7 @@
 #pragma once
 
-#include "rppg/face_geometry.hpp"
-#include "rppg/regions.hpp"
+#include "rppg/face/face_geometry.hpp"
+#include "rppg/regions/regions.hpp"
 
 #include <opencv2/core.hpp>
 

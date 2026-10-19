@@ -1,8 +1,8 @@
 #pragma once
 
-#include "rppg/face_track.hpp"
-#include "rppg/pulse.hpp"
-#include "rppg/region_signal.hpp"
+#include "rppg/face/face_track.hpp"
+#include "rppg/pulse/pulse.hpp"
+#include "rppg/regions/region_signal.hpp"
 
 #include <string>
 #include <vector>

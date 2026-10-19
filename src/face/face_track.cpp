@@ -1,7 +1,7 @@
-#include "rppg/face_track.hpp"
+#include "rppg/face/face_track.hpp"
 
 #include "rppg/limits.hpp"
-#include "rppg/signal.hpp"
+#include "rppg/pulse/signal.hpp"
 
 #include <algorithm>
 #include <array>

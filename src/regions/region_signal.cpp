@@ -1,7 +1,7 @@
-#include "rppg/region_signal.hpp"
+#include "rppg/regions/region_signal.hpp"
 
 #include "rppg/limits.hpp"
-#include "rppg/signal.hpp"
+#include "rppg/pulse/signal.hpp"
 
 namespace rppg {
 
