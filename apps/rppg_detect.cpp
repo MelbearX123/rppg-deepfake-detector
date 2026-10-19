@@ -1,9 +1,10 @@
 // rppg_detect: reads a video, finds and tracks the face, measures the color of
-// five skin regions in every frame, checks the video is usable for pulse
-// measurement, and prints a report. Stages 1-3 of the pipeline.
+// five skin regions in every frame, turns each region's color into a pulse
+// signal (POS), and prints a report. Stages 1-4 of the pipeline.
 //
 // Usage: rppg_detect <video> [--model <yunet.onnx>] [--debug-dir <dir>]
 //                            [--landmarks-csv <file>] [--signals-csv <file>]
+//                            [--pulse-csv <file>]
 //
 // Exit codes:
 //   0  OK
@@ -18,6 +19,7 @@
 #include "rppg/face.hpp"
 #include "rppg/face_track.hpp"
 #include "rppg/limits.hpp"
+#include "rppg/pulse.hpp"
 #include "rppg/region_sampler.hpp"
 #include "rppg/region_signal.hpp"
 #include "rppg/regions.hpp"
@@ -69,6 +71,7 @@ struct Options {
     std::string debug_dir;
     std::string landmarks_csv;
     std::string signals_csv;
+    std::string pulse_csv;
 };
 
 struct DetectionPass {
@@ -92,7 +95,8 @@ using RegionCoverage = std::array<double, rppg::kRegionCount>;
 
 void print_usage() {
     std::cerr << "usage: rppg_detect <video> [--model <yunet.onnx>] [--debug-dir <dir>]\n"
-                 "                           [--landmarks-csv <file>] [--signals-csv <file>]\n";
+                 "                           [--landmarks-csv <file>] [--signals-csv <file>]\n"
+                 "                           [--pulse-csv <file>]\n";
 }
 
 bool require_file(const std::string& path, const std::string& description) {
@@ -116,6 +120,8 @@ std::optional<Options> parse_args(int argc, char** argv) {
             options.landmarks_csv = argv[++i];
         } else if (arg == "--signals-csv" && has_value) {
             options.signals_csv = argv[++i];
+        } else if (arg == "--pulse-csv" && has_value) {
+            options.pulse_csv = argv[++i];
         } else if (options.video_path.empty() && arg.rfind("--", 0) != 0) {
             options.video_path = arg;
         } else {
@@ -260,9 +266,10 @@ RegionCoverage coverage_of(const rppg::RegionSignals& signals, const rppg::Segme
     return coverage;
 }
 
-std::size_t count_usable(const RegionCoverage& coverage) {
-    return static_cast<std::size_t>(std::count_if(coverage.begin(), coverage.end(),
-                                                  [](double c) { return rppg::is_usable(c); }));
+std::size_t count_pulses(const rppg::RegionPulses& pulses) {
+    return static_cast<std::size_t>(
+        std::count_if(pulses.pulses.begin(), pulses.pulses.end(),
+                      [](const auto& pulse) { return pulse.has_value(); }));
 }
 
 double duration_of(const rppg::Segment& segment, const std::vector<double>& timestamps_sec,
@@ -353,6 +360,18 @@ void print_region_report(const rppg::SkinModel& model, const RegionCoverage& cov
     std::cout << std::setprecision(2);
 }
 
+void print_pulse_report(const RegionCoverage& coverage, const rppg::RegionPulses& pulses) {
+    field("Pulse:") << count_pulses(pulses) << " of " << rppg::kRegionCount << " regions (POS, "
+                    << std::setprecision(0) << pulses.rate_hz << " Hz)\n"
+                    << std::setprecision(2);
+    for (std::size_t r = 0; r < rppg::kRegionCount; ++r) {
+        if (rppg::is_usable(coverage[r]) && !pulses.pulses[r]) {
+            field("") << rppg::region_name(static_cast<rppg::Region>(r))
+                      << ": no pulse, gap in skin color too long\n";
+        }
+    }
+}
+
 int exit_code_for(rppg::RequirementStatus status) {
     switch (status) {
         case rppg::RequirementStatus::kOk:
@@ -370,7 +389,6 @@ int exit_code_for(rppg::RequirementStatus status) {
     return kExitBadInput;
 }
 
-// Prints the final verdict and returns the matching exit code.
 int report_result(const rppg::RequirementResult& result) {
     if (result.status == rppg::RequirementStatus::kOk) {
         field("Result:") << "OK\n";
@@ -417,8 +435,6 @@ int main(int argc, char** argv) {
             field("Landmarks:") << "written to " << options->landmarks_csv << "\n";
         }
 
-        // Stop here if the face alone rules the video out; the next two passes
-        // would be wasted work.
         const rppg::RequirementResult face_result =
             rppg::check_face_requirements(timing, tracked_sec, face_sizes);
         if (face_result.status != rppg::RequirementStatus::kOk) {
@@ -449,7 +465,15 @@ int main(int argc, char** argv) {
                             << options->debug_dir << "\n";
         }
 
-        return report_result(rppg::check_region_requirements(count_usable(coverage)));
+        const rppg::RegionPulses pulses =
+            rppg::extract_pulses(measurement.signals, pass.timestamps_sec, *clean.segment);
+        print_pulse_report(coverage, pulses);
+        if (!options->pulse_csv.empty()) {
+            rppg::write_pulse_csv(options->pulse_csv, pulses);
+            field("Pulse CSV:") << "written to " << options->pulse_csv << "\n";
+        }
+
+        return report_result(rppg::check_region_requirements(count_pulses(pulses)));
     } catch (const std::exception& e) {
         std::cerr << "error: " << e.what() << "\n";
         return kExitBadInput;

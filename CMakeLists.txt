@@ -18,6 +18,7 @@ add_library(rppg_core
     src/face_geometry.cpp
     src/face_track.cpp
     src/pixel_stats.cpp
+    src/pulse.cpp
     src/region_signal.cpp
     src/regions.cpp
     src/requirements.cpp
@@ -50,6 +51,7 @@ add_executable(rppg_tests
     tests/test_compression.cpp
     tests/test_face_track.cpp
     tests/test_pixel_stats.cpp
+    tests/test_pulse.cpp
     tests/test_region_signal.cpp
     tests/test_regions.cpp
     tests/test_requirements.cpp

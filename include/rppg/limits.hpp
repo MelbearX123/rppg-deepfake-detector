@@ -27,4 +27,8 @@ inline constexpr double kTrimFraction = 0.1;
 
 inline constexpr double kMinRegionCoverage = 0.5;
 
+inline constexpr double kPulseRateHz = 30.0;
+
+inline constexpr double kPosWindowSec = 1.6;
+
 }  // namespace rppg::limits

@@ -7,8 +7,7 @@ Context for AI coding agents working in this repo. Read this before making chang
 A C++17 command-line tool that estimates a person's pulse from a face video (remote
 photoplethysmography, rPPG) and, eventually, uses pulse consistency across face regions to
 flag deepfakes. It's a student portfolio project for a C++ co-op application, so the code is
-judged on readability, testing, and engineering practice, not just results. The owner must be
-able to explain every line in an interview.
+judged on readability, testing, and engineering practice, not just results.
 
 Offline only: video file in, report out. No live webcam, no GUI (OpenCV's highgui is not built).
 
@@ -19,8 +18,8 @@ Offline only: video file in, report out. No live webcam, no GUI (OpenCV's highgu
 | 1 Video input | done | per-frame timestamps, VFR detection, compression (bits/pixel), length check |
 | 2 Face tracking | done | YuNet on every frame (shrunk to 640 px), IoU follower, gap filling, longest stretch, centered moving average |
 | 3 Face regions | done | glabella, forehead, upper nasal dorsum, both malars (Li et al. 2024); per-person skin model; trimmed mean |
-| 4 Pulse signal | next | POS (Wang et al. 2017) per region |
-| 5 Signal processing | planned | detrend, 0.7-4 Hz bandpass, resample to even spacing (`resample_uniform` exists) |
+| 4 Pulse signal | done | POS (Wang et al. 2017) per region, on colors resampled to an even 30 Hz grid |
+| 5 Signal processing | next | detrend, 0.7-4 Hz bandpass |
 | 6 Heart rate | planned | FFT peak, SNR, "inconclusive" when the signal is weak |
 | 7 Deepfake classification | stretch | compare pulse between regions, FaceForensics++ |
 | 8 Evaluation | planned | MAE/RMSE vs UBFC-rPPG ground truth; per-skin-tone error |
@@ -36,10 +35,11 @@ The resume-ready milestone is Stage 6 plus heart-rate validation on UBFC (Stage 
   - `rppg_vision`: anything touching images/video (`video`, `face`, `region_sampler`, `annotate`).
     Keep it thin: extract data with OpenCV, make decisions in core.
 - `apps/rppg_detect.cpp`: the CLI. Runs up to three passes over the video: detect/track, fit
-  skin model, measure regions. Returns early (no further passes) once a check rejects the video.
+  skin model, measure regions; then extracts a pulse per region. Returns early (no further passes) once a check rejects the video.
 - `include/rppg/limits.hpp`: every tunable threshold, named. Don't scatter numbers elsewhere.
 - `tests/`: GoogleTest, one file per module.
-- `scripts/`: `make_test_clips.sh` (synthetic test videos), `plot_landmarks.py`, `plot_signals.py`.
+- `scripts/`: `make_test_clips.sh` (synthetic test videos), `plot_landmarks.py`, `plot_signals.py`,
+  `plot_pulse.py`.
 - `models/`: YuNet ONNX model. `data/`, `debug/`, `results/`: local only, gitignored.
 
 Exit codes: 0 OK, 1 bad input, 2 too short, 3 no face / face too small, 4 face not tracked
@@ -50,7 +50,8 @@ Exit codes: 0 OK, 1 bad input, 2 too short, 3 no face / face too small, 4 face n
 - C++17, `-Wall -Wextra -Wpedantic`; CI also uses warnings-as-errors.
 - Format with clang-format (`.clang-format`: Google style, 4-space indent, 100 columns).
 - Per-frame data is always indexed by frame number (`FaceTrack`, `RegionSeries`, timestamps).
-  Don't introduce segment-relative indexing.
+  Don't introduce segment-relative indexing. The exception is pulse signals (`RegionPulses`): they
+  are resampled, so they're indexed by time on an even grid that carries its own start and rate.
 - Plain structs and free functions; `std::optional` for "maybe missing"; throw
   `std::invalid_argument` / `std::runtime_error` with the function name in the message.
 - Keep functions small and named for what they do; `main` should read as a summary.

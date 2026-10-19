@@ -1,5 +1,6 @@
 #include "rppg/signals_csv.hpp"
 
+#include <algorithm>
 #include <fstream>
 #include <iomanip>
 #include <stdexcept>
@@ -27,6 +28,35 @@ void write_signals_csv(const std::string& path, const std::vector<double>& times
             }
             out << ',' << sample.skin_pixels << ',' << sample.coverage << '\n';
         }
+    }
+}
+
+void write_pulse_csv(const std::string& path, const RegionPulses& pulses) {
+    std::ofstream out(path);
+    if (!out) {
+        throw std::runtime_error("could not write " + path);
+    }
+
+    out << "time_sec";
+    std::size_t sample_count = 0;
+    for (std::size_t r = 0; r < kRegionCount; ++r) {
+        out << ',' << region_name(static_cast<Region>(r));
+        if (pulses.pulses[r]) {
+            sample_count = std::max(sample_count, pulses.pulses[r]->size());
+        }
+    }
+    out << '\n';
+
+    out << std::fixed << std::setprecision(6);
+    for (std::size_t k = 0; k < sample_count; ++k) {
+        out << pulses.start_sec + static_cast<double>(k) / pulses.rate_hz;
+        for (const auto& pulse : pulses.pulses) {
+            out << ',';
+            if (pulse) {
+                out << (*pulse)[k];
+            }
+        }
+        out << '\n';
     }
 }
 
