@@ -7,8 +7,7 @@ Context for AI coding agents working in this repo. Read this before making chang
 A C++17 command-line tool that estimates a person's pulse from a face video (remote
 photoplethysmography, rPPG) and, eventually, uses pulse consistency across face regions to
 flag deepfakes. It's a student portfolio project for a C++ co-op application, so the code is
-judged on readability, testing, and engineering practice, not just results. The owner must be
-able to explain every line in an interview.
+judged on readability, testing, and engineering practice, not just results.
 
 Offline only: video file in, report out. No live webcam, no GUI (OpenCV's highgui is not built).
 
