@@ -14,7 +14,7 @@
 //   3  no face found, or the face is too small
 //   4  face never tracked long enough without a break
 //   5  no skin region is usable (e.g. all covered by hair)
-//   6  inconclusive: no region's pulse was strong enough (SNR) to trust
+//   6  inconclusive: the face regions agreed in too few windows to trust a heart rate
 
 #include "rppg/face/face.hpp"
 #include "rppg/face/face_track.hpp"
@@ -393,16 +393,21 @@ void print_heart_rate_report(const rppg::HeartRates& rates) {
             << std::left << std::setw(kRegionNameWidth)
             << rppg::region_name(static_cast<rppg::Region>(r)) << std::right << std::setprecision(0)
             << std::setw(3) << region.bpm << " bpm  SNR " << std::setprecision(1) << region.snr_db
-            << " dB" << (region.snr_db >= rppg::limits::kMinSnrDb ? "" : "  (too weak)") << "\n";
+            << " dB\n";
         first = false;
     }
-    field("") << std::left << std::setw(kRegionNameWidth) << "face" << std::right;
+    const auto trusted = std::count_if(rates.face_windows.begin(), rates.face_windows.end(),
+                                       [](const rppg::FaceWindow& w) { return w.trusted; });
+    field("") << std::left << std::setw(kRegionNameWidth) << "face" << std::right
+              << std::setprecision(0);
     if (rates.bpm) {
-        std::cout << std::setprecision(0) << std::setw(3) << *rates.bpm << " bpm\n";
+        std::cout << std::setw(3) << *rates.bpm << " bpm";
     } else {
-        std::cout << "inconclusive\n";
+        std::cout << "inconclusive";
     }
-    std::cout << std::setprecision(2);
+    std::cout << " (" << trusted << " of " << rates.face_windows.size()
+              << " windows trusted, nasal dorsum left out)\n"
+              << std::setprecision(2);
 }
 
 int exit_code_for(rppg::RequirementStatus status) {

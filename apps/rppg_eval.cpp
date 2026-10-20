@@ -55,11 +55,17 @@ struct WindowRow {
     double snr_db = 0.0;
 };
 
+struct FaceRow {
+    rppg::FaceWindow face;
+    double truth_bpm = 0.0;
+};
+
 struct SubjectResult {
     std::string name;
     std::optional<double> tool_bpm;  // nullopt = inconclusive or no pulse
     std::optional<double> truth_bpm;
     std::vector<WindowRow> windows;
+    std::vector<FaceRow> faces;
 };
 
 void print_usage() {
@@ -150,6 +156,9 @@ SubjectResult evaluate_subject(const std::filesystem::path& dir, const Options& 
                                       windows[i].snr_db});
         }
     }
+    for (std::size_t i = 0; i < rates.face_windows.size(); ++i) {
+        result.faces.push_back({rates.face_windows[i], truths[i]});
+    }
     if (!truths.empty()) {
         result.truth_bpm = rppg::median(truths);
     }
@@ -206,6 +215,30 @@ void print_window_report(const std::vector<SubjectResult>& results) {
                         rppg::error_stats(estimates[r], truths[r]));
         }
     }
+
+    std::cout << "\nWindow level, face (regions combined, nasal dorsum left out):\n";
+    std::vector<double> all_estimates;
+    std::vector<double> all_truths;
+    std::vector<double> trusted_estimates;
+    std::vector<double> trusted_truths;
+    for (const SubjectResult& s : results) {
+        for (const FaceRow& row : s.faces) {
+            all_estimates.push_back(row.face.bpm);
+            all_truths.push_back(row.truth_bpm);
+            if (row.face.trusted) {
+                trusted_estimates.push_back(row.face.bpm);
+                trusted_truths.push_back(row.truth_bpm);
+            }
+        }
+    }
+    if (!all_estimates.empty()) {
+        print_stats("all windows", rppg::error_stats(all_estimates, all_truths));
+    }
+    if (!trusted_estimates.empty()) {
+        print_stats("trusted only", rppg::error_stats(trusted_estimates, trusted_truths));
+    }
+    std::cout << "  trusted " << trusted_estimates.size() << " of " << all_estimates.size()
+              << " windows\n";
 }
 
 void write_windows_csv(const std::string& path, const std::vector<SubjectResult>& results) {
@@ -213,12 +246,19 @@ void write_windows_csv(const std::string& path, const std::vector<SubjectResult>
     if (!out) {
         throw std::runtime_error("could not write " + path);
     }
-    out << "subject,region,center_sec,estimate_bpm,truth_bpm,snr_db\n";
+    out << "subject,region,center_sec,estimate_bpm,truth_bpm,snr_db,deviation_bpm,regions,"
+           "trusted\n";
     out << std::fixed << std::setprecision(3);
     for (const SubjectResult& s : results) {
         for (const WindowRow& w : s.windows) {
             out << w.subject << ',' << rppg::region_name(w.region) << ',' << w.center_sec << ','
-                << w.estimate_bpm << ',' << w.truth_bpm << ',' << w.snr_db << '\n';
+                << w.estimate_bpm << ',' << w.truth_bpm << ',' << w.snr_db << ",,,\n";
+        }
+        for (const FaceRow& row : s.faces) {
+            const rppg::FaceWindow& f = row.face;
+            out << s.name << ",face," << f.center_sec << ',' << f.bpm << ',' << row.truth_bpm << ','
+                << f.snr_db << ',' << f.deviation_bpm << ',' << f.regions << ','
+                << (f.trusted ? 1 : 0) << '\n';
         }
     }
 }
