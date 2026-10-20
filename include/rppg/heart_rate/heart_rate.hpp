@@ -45,6 +45,8 @@ std::vector<WindowEstimate> estimate_windows(const std::vector<double>& pulse, d
 
 std::vector<FaceWindow> combine_regions(const RegionHeartRates& regions);
 
+std::optional<double> trusted_bpm(const std::vector<FaceWindow>& windows);
+
 HeartRates estimate_heart_rates(const RegionPulses& pulses);
 
 }  // namespace rppg
