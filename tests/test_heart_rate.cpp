@@ -86,41 +86,137 @@ TEST(HeartRateWindows, BadInputThrows) {
     EXPECT_THROW(rppg::estimate_windows(pulse_at(72.0), 0.0, 0.0), std::invalid_argument);
 }
 
-// --- estimate_heart_rates ---
+// --- combine_regions / trusted_bpm ---
 
-TEST(HeartRates, MedianOfConfidentRegionsIgnoresNoisyOnes) {
-    rppg::RegionPulses pulses = pulses_starting_at(0.0);
-    pulses.pulses[rppg::kGlabella] = pulse_at(66.0);
-    pulses.pulses[rppg::kRightMalar] = pulse_at(72.0);
-    pulses.pulses[rppg::kLeftMalar] = pulse_at(78.0);
-    pulses.pulses[rppg::kUpperNasalDorsum] = noise(2);  // would shift a median of four
+namespace {
 
-    const rppg::HeartRates rates = rppg::estimate_heart_rates(pulses);
-    ASSERT_TRUE(rates.regions[rppg::kUpperNasalDorsum]);
-    EXPECT_LT(rates.regions[rppg::kUpperNasalDorsum]->snr_db, rppg::limits::kMinSnrDb);
-    ASSERT_TRUE(rates.regions[rppg::kRightMalar]);
-    EXPECT_NEAR(rates.regions[rppg::kRightMalar]->bpm, 72.0, 0.5);
-    EXPECT_FALSE(rates.regions[rppg::kForehead]);  // had no pulse
-    ASSERT_TRUE(rates.bpm);
-    EXPECT_NEAR(*rates.bpm, 72.0, 0.5);
+// A region whose windows (one per value) all have the given smoothed bpm and SNR.
+rppg::RegionHeartRate region_with(const std::vector<double>& bpm, double snr_db) {
+    rppg::RegionHeartRate region;
+    for (std::size_t i = 0; i < bpm.size(); ++i) {
+        rppg::WindowEstimate w;
+        w.center_sec = 5.0 + static_cast<double>(i);
+        w.peak_bpm = bpm[i];
+        w.smoothed_bpm = bpm[i];
+        w.snr_db = snr_db;
+        region.windows.push_back(w);
+    }
+    return region;
 }
 
-TEST(HeartRates, TwoRegionsGiveTheMoreConfidentRateNotTheirAverage) {
-    // Averaging 60 and 84 would report 72, which neither region measured.
-    std::vector<double> noisy = pulse_at(84.0);
-    const std::vector<double> extra = noise(5);
-    for (std::size_t n = 0; n < noisy.size(); ++n) {
-        noisy[n] += 0.3 * extra[n];
-    }
+rppg::FaceWindow face_window(bool trusted, double bpm) {
+    rppg::FaceWindow w;
+    w.trusted = trusted;
+    w.bpm = bpm;
+    return w;
+}
+
+}  // namespace
+
+TEST(CombineRegions, TakesTheMedianPerWindowAndMeasuresAgreement) {
+    rppg::RegionHeartRates regions;
+    regions[rppg::kGlabella] = region_with({70.0}, 2.0);
+    regions[rppg::kRightMalar] = region_with({72.0}, 2.0);
+    regions[rppg::kLeftMalar] = region_with({90.0}, 2.0);
+
+    const auto faces = rppg::combine_regions(regions);
+    ASSERT_EQ(faces.size(), 1u);
+    EXPECT_DOUBLE_EQ(faces[0].center_sec, 5.0);
+    EXPECT_DOUBLE_EQ(faces[0].bpm, 72.0);
+    EXPECT_DOUBLE_EQ(faces[0].deviation_bpm, 2.0);  // median of |-2|, 0, 18
+    EXPECT_EQ(faces[0].regions, 3u);
+}
+
+TEST(CombineRegions, AgreeingRegionsAreTrustedEvenWithModestSnr) {
+    // Like lightly compressed video: right answer, SNR below the old 0 dB threshold.
+    rppg::RegionHeartRates regions;
+    regions[rppg::kGlabella] = region_with({106.0}, -2.0);
+    regions[rppg::kForehead] = region_with({106.5}, -2.0);
+    regions[rppg::kRightMalar] = region_with({105.5}, -2.0);
+    EXPECT_TRUE(rppg::combine_regions(regions)[0].trusted);
+}
+
+TEST(CombineRegions, DisagreeingRegionsAreNotTrusted) {
+    rppg::RegionHeartRates regions;
+    regions[rppg::kGlabella] = region_with({60.0}, 3.0);
+    regions[rppg::kRightMalar] = region_with({72.0}, 3.0);
+    regions[rppg::kLeftMalar] = region_with({90.0}, 3.0);
+    EXPECT_FALSE(rppg::combine_regions(regions)[0].trusted);
+}
+
+TEST(CombineRegions, VeryLowSnrIsNotTrustedEvenIfRegionsAgree) {
+    rppg::RegionHeartRates regions;
+    regions[rppg::kGlabella] = region_with({72.0}, -6.0);
+    regions[rppg::kRightMalar] = region_with({72.0}, -6.0);
+    EXPECT_FALSE(rppg::combine_regions(regions)[0].trusted);
+}
+
+TEST(CombineRegions, OneRegionIsNeverTrusted) {
+    // With nothing to compare against, agreement means nothing.
+    rppg::RegionHeartRates regions;
+    regions[rppg::kGlabella] = region_with({72.0}, 5.0);
+    const auto faces = rppg::combine_regions(regions);
+    EXPECT_EQ(faces[0].regions, 1u);
+    EXPECT_FALSE(faces[0].trusted);
+}
+
+TEST(CombineRegions, LeavesOutTheNasalDorsum) {
+    rppg::RegionHeartRates regions;
+    regions[rppg::kGlabella] = region_with({72.0}, 2.0);
+    regions[rppg::kRightMalar] = region_with({72.0}, 2.0);
+    regions[rppg::kUpperNasalDorsum] = region_with({150.0}, 2.0);
+    const auto faces = rppg::combine_regions(regions);
+    EXPECT_EQ(faces[0].regions, 2u);
+    EXPECT_DOUBLE_EQ(faces[0].bpm, 72.0);
+}
+
+TEST(CombineRegions, NoFaceRegionsGiveNoWindows) {
+    rppg::RegionHeartRates regions;
+    regions[rppg::kUpperNasalDorsum] = region_with({72.0}, 2.0);
+    EXPECT_TRUE(rppg::combine_regions(regions).empty());
+}
+
+TEST(CombineRegions, DifferentWindowCountsThrow) {
+    rppg::RegionHeartRates regions;
+    regions[rppg::kGlabella] = region_with({72.0, 72.0}, 2.0);
+    regions[rppg::kRightMalar] = region_with({72.0}, 2.0);
+    EXPECT_THROW(rppg::combine_regions(regions), std::invalid_argument);
+}
+
+TEST(TrustedBpm, MedianOfTrustedWindowsOnly) {
+    // 3 of 4 trusted; the untrusted 140 is ignored.
+    const std::vector<rppg::FaceWindow> windows = {face_window(true, 70.0), face_window(true, 72.0),
+                                                   face_window(true, 74.0),
+                                                   face_window(false, 140.0)};
+    ASSERT_TRUE(rppg::trusted_bpm(windows));
+    EXPECT_DOUBLE_EQ(*rppg::trusted_bpm(windows), 72.0);
+}
+
+TEST(TrustedBpm, TooFewTrustedWindowsIsInconclusive) {
+    // 1 of 4 trusted is below kMinTrustedWindowFraction.
+    const std::vector<rppg::FaceWindow> windows = {
+        face_window(true, 72.0), face_window(false, 60.0), face_window(false, 90.0),
+        face_window(false, 140.0)};
+    EXPECT_FALSE(rppg::trusted_bpm(windows));
+    EXPECT_FALSE(rppg::trusted_bpm({}));
+}
+
+// --- estimate_heart_rates ---
+
+TEST(HeartRates, AgreeingRegionsGiveTheirRate) {
     rppg::RegionPulses pulses = pulses_starting_at(0.0);
-    pulses.pulses[rppg::kGlabella] = pulse_at(60.0);
-    pulses.pulses[rppg::kLeftMalar] = noisy;
+    pulses.pulses[rppg::kGlabella] = pulse_at(72.0);
+    pulses.pulses[rppg::kRightMalar] = pulse_at(72.0);
+    pulses.pulses[rppg::kLeftMalar] = pulse_at(72.0);
 
     const rppg::HeartRates rates = rppg::estimate_heart_rates(pulses);
-    ASSERT_TRUE(rates.regions[rppg::kLeftMalar]);
-    ASSERT_GE(rates.regions[rppg::kLeftMalar]->snr_db, rppg::limits::kMinSnrDb);
+    EXPECT_FALSE(rates.regions[rppg::kForehead]);  // had no pulse
+    ASSERT_EQ(rates.face_windows.size(), 11u);
+    for (const auto& window : rates.face_windows) {
+        EXPECT_TRUE(window.trusted);
+    }
     ASSERT_TRUE(rates.bpm);
-    EXPECT_NEAR(*rates.bpm, 60.0, 0.5);
+    EXPECT_NEAR(*rates.bpm, 72.0, 0.5);
 }
 
 TEST(HeartRates, OnlyNoiseIsInconclusive) {
