@@ -13,7 +13,6 @@ namespace {
 constexpr double kPi = 3.14159265358979323846;
 constexpr double kRoundingTolerance = 1e-9;
 
-
 std::vector<double> hann_tapered(const std::vector<double>& x) {
     std::vector<double> out;
     out.reserve(x.size());
