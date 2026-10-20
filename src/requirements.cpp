@@ -46,8 +46,8 @@ RequirementResult check_region_requirements(std::size_t pulse_regions) {
 RequirementResult check_heart_rate(const std::optional<double>& face_bpm) {
     if (!face_bpm) {
         std::ostringstream reason;
-        reason << std::fixed << std::setprecision(1) << "no region's median SNR reached "
-               << limits::kMinSnrDb << " dB";
+        reason << std::fixed << std::setprecision(0) << "regions agreed in fewer than "
+               << limits::kMinTrustedWindowFraction * 100.0 << "% of windows";
         return {RequirementStatus::kInconclusive, reason.str()};
     }
     return {RequirementStatus::kOk, ""};
