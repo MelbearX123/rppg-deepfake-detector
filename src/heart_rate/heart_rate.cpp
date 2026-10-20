@@ -5,6 +5,7 @@
 #include "rppg/pulse/signal.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <stdexcept>
@@ -15,6 +16,8 @@ namespace rppg {
 namespace {
 
 constexpr double kSecPerMin = 60.0;
+
+constexpr std::array<Region, 4> kFaceRegions = {kGlabella, kForehead, kRightMalar, kLeftMalar};
 
 WindowEstimate estimate_window(const std::vector<double>& window, double center_sec,
                                double rate_hz) {
@@ -30,16 +33,27 @@ WindowEstimate estimate_window(const std::vector<double>& window, double center_
     return estimate;
 }
 
-double middle_rate(std::vector<const RegionHeartRate*> regions) {
-    std::sort(regions.begin(), regions.end(),
-              [](const RegionHeartRate* a, const RegionHeartRate* b) { return a->bpm < b->bpm; });
-    const std::size_t mid = regions.size() / 2;
-    if (regions.size() % 2 == 1) {
-        return regions[mid]->bpm;
+FaceWindow combine_window(const std::vector<const WindowEstimate*>& estimates) {
+    std::vector<double> bpm;
+    std::vector<double> snr;
+    for (const WindowEstimate* estimate : estimates) {
+        bpm.push_back(estimate->smoothed_bpm);
+        snr.push_back(estimate->snr_db);
     }
-    const RegionHeartRate* lower = regions[mid - 1];
-    const RegionHeartRate* upper = regions[mid];
-    return lower->snr_db >= upper->snr_db ? lower->bpm : upper->bpm;
+    FaceWindow face;
+    face.center_sec = estimates.front()->center_sec;
+    face.bpm = median(bpm);
+    std::vector<double> deviations;
+    for (double b : bpm) {
+        deviations.push_back(std::abs(b - face.bpm));
+    }
+    face.deviation_bpm = median(deviations);
+    face.snr_db = median(snr);
+    face.regions = estimates.size();
+    face.trusted = face.regions >= limits::kMinRegionsPerWindow &&
+                   face.deviation_bpm <= limits::kMaxRegionDeviationBpm &&
+                   face.snr_db >= limits::kMinWindowSnrDb;
+    return face;
 }
 
 RegionHeartRate summarize(std::vector<WindowEstimate> windows) {
@@ -90,6 +104,48 @@ std::vector<WindowEstimate> estimate_windows(const std::vector<double>& pulse, d
     return windows;
 }
 
+std::vector<FaceWindow> combine_regions(const RegionHeartRates& regions) {
+    std::vector<const RegionHeartRate*> present;
+    for (Region r : kFaceRegions) {
+        if (regions[r]) {
+            present.push_back(&*regions[r]);
+        }
+    }
+    if (present.empty()) {
+        return {};
+    }
+    const std::size_t window_count = present.front()->windows.size();
+    for (const RegionHeartRate* region : present) {
+        if (region->windows.size() != window_count) {
+            throw std::invalid_argument("combine_regions: regions have different window counts");
+        }
+    }
+
+    std::vector<FaceWindow> faces;
+    for (std::size_t i = 0; i < window_count; ++i) {
+        std::vector<const WindowEstimate*> estimates;
+        for (const RegionHeartRate* region : present) {
+            estimates.push_back(&region->windows[i]);
+        }
+        faces.push_back(combine_window(estimates));
+    }
+    return faces;
+}
+
+std::optional<double> trusted_bpm(const std::vector<FaceWindow>& windows) {
+    std::vector<double> trusted;
+    for (const FaceWindow& window : windows) {
+        if (window.trusted) {
+            trusted.push_back(window.bpm);
+        }
+    }
+    const double needed = limits::kMinTrustedWindowFraction * static_cast<double>(windows.size());
+    if (trusted.empty() || static_cast<double>(trusted.size()) < needed) {
+        return std::nullopt;
+    }
+    return median(trusted);
+}
+
 HeartRates estimate_heart_rates(const RegionPulses& pulses) {
     HeartRates rates;
     for (std::size_t r = 0; r < kRegionCount; ++r) {
@@ -98,16 +154,8 @@ HeartRates estimate_heart_rates(const RegionPulses& pulses) {
                 summarize(estimate_windows(*pulses.pulses[r], pulses.start_sec, pulses.rate_hz));
         }
     }
-
-    std::vector<const RegionHeartRate*> confident;
-    for (const auto& region : rates.regions) {
-        if (region && region->snr_db >= limits::kMinSnrDb) {
-            confident.push_back(&*region);
-        }
-    }
-    if (!confident.empty()) {
-        rates.bpm = middle_rate(confident);
-    }
+    rates.face_windows = combine_regions(rates.regions);
+    rates.bpm = trusted_bpm(rates.face_windows);
     return rates;
 }
 

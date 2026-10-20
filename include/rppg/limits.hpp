@@ -40,9 +40,11 @@ inline constexpr double kSpectrumStepBpm = 0.5;
 inline constexpr std::size_t kHeartRateSmoothingWindows = 5;
 inline constexpr double kSnrHalfWidthHz = 0.1;
 
-// PLACEHOLDER until measured on UBFC (Stage 8). 0 dB = the peak holds as much
-// power as the rest of the band; on 10 s test windows noise alone scored -5 dB
-// and a pulse plus equal-power noise +4 dB.
-inline constexpr double kMinSnrDb = 0.0;
+// Tuned with scripts/tune_thresholds.py on UBFC subjects 1, 3, 5, 9, 11 (raw + CRF 6/14/23),
+// checked on 4, 8, 10, 12: 9 of 16 clips decided there, none off by more than 5 bpm.
+inline constexpr double kMaxRegionDeviationBpm = 3.0;
+inline constexpr double kMinWindowSnrDb = -3.0;
+inline constexpr std::size_t kMinRegionsPerWindow = 2;
+inline constexpr double kMinTrustedWindowFraction = 0.4;
 
 }  // namespace rppg::limits

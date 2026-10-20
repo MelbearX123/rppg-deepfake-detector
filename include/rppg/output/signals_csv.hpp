@@ -10,8 +10,16 @@
 
 namespace rppg {
 
+struct SavedSignals {
+    std::vector<double> timestamps_sec;
+    RegionSignals signals;
+    Segment segment;
+};
+
 void write_signals_csv(const std::string& path, const std::vector<double>& timestamps_sec,
                        const RegionSignals& signals, const Segment& segment);
+
+SavedSignals read_signals_csv(const std::string& path);
 
 void write_pulse_csv(const std::string& path, const RegionPulses& pulses);
 
