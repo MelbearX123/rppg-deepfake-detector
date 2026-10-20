@@ -14,6 +14,8 @@ find_package(Eigen3 REQUIRED)
 
 # --- Core library: signal math, no OpenCV. Fast to build, easy to test. ---
 add_library(rppg_core
+    src/eval/ground_truth.cpp
+    src/eval/metrics.cpp
     src/face/face_geometry.cpp
     src/face/face_track.cpp
     src/heart_rate/heart_rate.cpp
@@ -47,6 +49,10 @@ target_link_libraries(rppg_vision PUBLIC rppg_core opencv::opencv)
 add_executable(rppg_detect apps/rppg_detect.cpp)
 target_link_libraries(rppg_detect PRIVATE rppg_vision)
 
+# Replays saved region colors against UBFC ground truth; no OpenCV needed.
+add_executable(rppg_eval apps/rppg_eval.cpp)
+target_link_libraries(rppg_eval PRIVATE rppg_core)
+
 # --- Tests ---
 enable_testing()
 find_package(GTest REQUIRED)
@@ -54,13 +60,16 @@ add_executable(rppg_tests
     tests/test_compression.cpp
     tests/test_face_track.cpp
     tests/test_filter.cpp
+    tests/test_ground_truth.cpp
     tests/test_heart_rate.cpp
+    tests/test_metrics.cpp
     tests/test_pixel_stats.cpp
     tests/test_pulse.cpp
     tests/test_region_signal.cpp
     tests/test_regions.cpp
     tests/test_requirements.cpp
     tests/test_signal.cpp
+    tests/test_signals_csv.cpp
     tests/test_skin_model.cpp
     tests/test_spectrum.cpp
     tests/test_timing.cpp

@@ -35,7 +35,8 @@ The resume-ready milestone is Stage 6 plus heart-rate validation on UBFC (Stage 
   - `regions/`: `regions`, `region_sampler`, `region_signal`, `skin_model`, `pixel_stats`
   - `pulse/`: `signal`, `filter`, `pulse`
   - `heart_rate/`: `spectrum`, `heart_rate`
-  - `output/`: `track_csv`, `signals_csv`, `annotate`
+  - `output/`: `track_csv`, `signals_csv` (also reads saved colors back), `annotate`
+  - `eval/`: `ground_truth` (UBFC files, truth from the waveform), `metrics` (MAE/RMSE/r)
   - top level: `limits.hpp`, `requirements` (used by every step)
 
   Includes use the folder: `#include "rppg/face/face_track.hpp"`. The folders don't decide the
@@ -46,6 +47,9 @@ The resume-ready milestone is Stage 6 plus heart-rate validation on UBFC (Stage 
     Keep it thin: extract data with OpenCV, make decisions in core.
 - `apps/rppg_detect.cpp`: the CLI. Runs up to three passes over the video: detect/track, fit
   skin model, measure regions; then extracts and bandpasses a pulse per region and estimates the heart rate. Returns early (no further passes) once a check rejects the video.
+- `apps/rppg_eval.cpp`: evaluation on UBFC-rPPG without videos. Reads each subject's saved
+  colors (`rppg_detect --signals-csv`) and `ground_truth.txt`, reruns the pulse and heart-rate
+  stages, and prints MAE/RMSE/r per clip and per window. Links only `rppg_core`.
 - `include/rppg/limits.hpp`: every tunable threshold, named. Don't scatter numbers elsewhere.
 - `tests/`: GoogleTest, one file per module.
 - `scripts/`: `make_test_clips.sh` (synthetic test videos), `plot_landmarks.py`, `plot_signals.py`,
@@ -79,6 +83,14 @@ if it isn't on PATH.
 cmake --build --preset conan-release
 ctest --test-dir build/Release --output-on-failure
 ./build/Release/rppg_detect data/webcam.mp4 --debug-dir debug --landmarks-csv results/track.csv --signals-csv results/signals.csv
+```
+
+UBFC evaluation (`data/ubfc/subjectN/` with `ground_truth.txt` and `signals.csv` saved by
+`rppg_detect <vid.avi> --signals-csv`; the video can then be deleted). Ground truth comes from the
+waveform (line 1); the oximeter's displayed rate (line 2) was off by up to 26 bpm:
+
+```bash
+./build/Release/rppg_eval data/ubfc --windows-csv results/ubfc/windows.csv
 ```
 
 Same checks as CI (warnings as errors), then reset:
