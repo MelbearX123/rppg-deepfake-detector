@@ -20,9 +20,9 @@ Offline only: video file in, report out. No live webcam, no GUI (OpenCV's highgu
 | 3 Face regions | done | glabella, forehead, upper nasal dorsum, both malars (Li et al. 2024); per-person skin model; trimmed mean |
 | 4 Pulse signal | done | POS (Wang et al. 2017) per region, on colors resampled to an even 30 Hz grid |
 | 5 Signal processing | done | zero-phase Butterworth bandpass 0.7-4 Hz (no detrend: POS already removes drift); the first and last ~2 s are less accurate (edge effects) |
-| 6 Heart rate | done | spectrum peak per 10 s window (every 0.5 bpm), median filter, SNR (de Haan 2013); median of regions above the SNR threshold, else "inconclusive". The threshold is a placeholder until UBFC |
+| 6 Heart rate | done | spectrum peak per 10 s window (every 0.5 bpm), median filter, SNR (de Haan 2013); regions combined per window (median, nasal dorsum left out); a window is trusted when regions agree; median of trusted windows, else "inconclusive" |
 | 7 Deepfake classification | next (stretch) | compare pulse between regions, FaceForensics++ |
-| 8 Evaluation | planned | MAE/RMSE vs UBFC-rPPG ground truth; per-skin-tone error |
+| 8 Evaluation | in progress | `rppg_eval` replays saved colors vs waveform truth; 9 UBFC subjects: clip MAE 0.88 bpm, 9/9 decided; trust thresholds tuned on odd subjects, checked on even. Still to do: all 42 subjects, per-skin-tone error |
 | 9-10 Performance, packaging | planned | benchmarks, Docker |
 
 The resume-ready milestone is Stage 6 plus heart-rate validation on UBFC (Stage 8).
@@ -53,11 +53,12 @@ The resume-ready milestone is Stage 6 plus heart-rate validation on UBFC (Stage 
 - `include/rppg/limits.hpp`: every tunable threshold, named. Don't scatter numbers elsewhere.
 - `tests/`: GoogleTest, one file per module.
 - `scripts/`: `make_test_clips.sh` (synthetic test videos), `plot_landmarks.py`, `plot_signals.py`,
-  `plot_pulse.py`, `plot_heart_rate.py`.
+  `plot_pulse.py`, `plot_heart_rate.py`,
+  `tune_thresholds.py` (tunes the window-trust limits from `rppg_eval --windows-csv`).
 - `models/`: YuNet ONNX model. `data/`, `debug/`, `results/`: local only, gitignored.
 
 Exit codes: 0 OK, 1 bad input, 2 too short, 3 no face / face too small, 4 face not tracked
-10 s in a row, 5 no usable skin region, 6 inconclusive (no region's SNR reached the threshold).
+10 s in a row, 5 no usable skin region, 6 inconclusive (the face regions agreed in too few windows).
 
 ## Conventions
 

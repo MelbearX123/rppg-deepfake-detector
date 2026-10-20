@@ -1,6 +1,6 @@
 # rPPG Deepfake Detector
 
-> **This project is a work in progress.** Right now it reads a video with correct per-frame timing, checks that the video is usable (length, compression, face size), finds and tracks the face with 5 landmarks in every frame, and measures the color of five skin regions (glabella, forehead, upper nasal dorsum, both malars) in every frame, skipping hair with a per-person skin model, then turns each region's color into a pulse signal with POS, filters it to the heart-rate band, and estimates the heart rate, saying "inconclusive" when the signal is too weak to trust. Checking accuracy against real pulse readings and the rest are planned below.
+> **This project is a work in progress.** Right now it reads a video with correct per-frame timing, checks that the video is usable (length, compression, face size), finds and tracks the face with 5 landmarks in every frame, and measures the color of five skin regions (glabella, forehead, upper nasal dorsum, both malars) in every frame, skipping hair with a per-person skin model, then turns each region's color into a pulse signal with POS, filters it to the heart-rate band, and estimates the heart rate, saying "inconclusive" when the face regions don't agree. It has been checked against real pulse-sensor readings on 9 subjects of UBFC-rPPG (results below); deepfake detection and the rest are planned below.
 
 ## What I'm building
 
@@ -15,7 +15,7 @@ When your heart beats, a little more blood flows into the skin of your face, and
 3. **Average the color** of each region in every frame, which gives a red, green, and blue signal over time. A skin model learned from each person's own face skips hair and shadow, and a trimmed mean drops glare.
 4. **Turn the colors into a pulse signal** using the POS algorithm (Wang et al., 2017), which combines R, G, and B so that lighting changes and head movement mostly cancel out.
 5. **Clean the signal** by filtering to 0.7–4 Hz (42–240 BPM, the range of human heart rates). POS already removes most slow drift, so a separate detrending step didn't change anything when I measured it.
-6. **Estimate the heart rate** from the spectrum of each 10 s window: the strongest frequency in that range is the pulse. A median filter removes one-off jumps, and the signal-to-noise ratio (SNR) decides whether the answer can be trusted.
+6. **Estimate the heart rate** from the spectrum of each 10 s window: the strongest frequency in that range is the pulse. A median filter removes one-off jumps. The face regions are combined window by window, and a window is trusted only when the regions agree with each other and the signal-to-noise ratio (SNR) isn't too low.
 7. **Check that it actually works** by comparing my heart rates to real pulse-sensor readings from the UBFC-rPPG dataset (see [References](#references)). I want this working before I touch any deepfakes.
 8. **Detect deepfakes** by comparing the pulse between face regions and training a classifier on real and fake videos from FaceForensics++. If the signal is too weak to trust, the tool should say "inconclusive" instead of guessing.
 9. **Measure and optimize speed**, then package it with Docker and set up CI.
@@ -65,6 +65,25 @@ To check the heart rate, save the per-window estimates and plot them with their 
 ```bash
 ./build/Release/rppg_detect path/to/video.mp4 --heart-rate-csv results/heart_rate.csv
 .venv/bin/python scripts/plot_heart_rate.py results/heart_rate.csv
+```
+
+## Results on UBFC-rPPG (9 subjects so far)
+
+Compared against the finger pulse sensor in UBFC-rPPG (heart rate taken from the sensor's waveform). Each video was also re-encoded with H.264 at three quality levels (CRF 6 is light compression, CRF 23 is YouTube-like).
+
+| Video | Clips with a heart rate | Clip error (MAE) | Worst clip |
+|---|---|---|---|
+| Original (uncompressed) | 9 of 9 | 0.88 bpm | 1.75 bpm |
+| CRF 6 | 6 of 9 | 1.58 bpm | 4.25 bpm |
+| CRF 14 | 1 of 9 | 0.00 bpm (1 clip) | 0.00 bpm |
+| CRF 23 | 1 of 9 | 0.00 bpm (1 clip) | 0.00 bpm |
+
+The other clips came out "inconclusive" rather than wrong: no clip with a heart rate was more than 5 bpm off. Compression erases most of the pulse, so the tool needs good-quality video. These are 9 subjects; the trust thresholds were tuned on 5 of them and checked on the other 4.
+
+To reproduce, save each subject's region colors once (`rppg_detect vid.avi --signals-csv data/ubfc/subjectN/signals.csv`, next to its `ground_truth.txt`), then:
+
+```bash
+./build/Release/rppg_eval data/ubfc
 ```
 
 ## References
