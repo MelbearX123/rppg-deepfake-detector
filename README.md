@@ -24,7 +24,7 @@ I also want to test how much video compression (like YouTube or WhatsApp) hurts 
 
 ## Tech stack
 
-C++17, OpenCV, Eigen, CMake, Conan, GoogleTest
+C++17, OpenCV, CMake, Conan, GoogleTest
 
 ## Building
 
